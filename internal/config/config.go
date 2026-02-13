@@ -22,7 +22,7 @@ type Config struct {
 	Paths    Paths  `mapstructure:"paths"`
 }
 
-var C Config
+var instance Config
 
 // getDefaultConfigDir returns the default configuration directory for the application.
 func getDefaultConfigDir() string {
@@ -66,8 +66,12 @@ func ConfigFile() string {
 	return filepath.Join(getDefaultConfigDir(), "config.yaml")
 }
 
+func Get() *Config {
+	return &instance
+}
+
 // Load reads configuration from file and environment variables into the Config struct.
-func Load(configFilePath ...string) error {
+func Load(configFilePath ...string) (*Config, error) {
 	// Defaults
 	dataDir := getDefaultDataDir()
 	viper.SetDefault("paths.workflows", filepath.Join(dataDir, "workflows"))
@@ -94,5 +98,5 @@ func Load(configFilePath ...string) error {
 	// Ignore error if config file doesn't exist
 	_ = viper.ReadInConfig()
 
-	return viper.Unmarshal(&C)
+	return &instance, viper.Unmarshal(&instance)
 }

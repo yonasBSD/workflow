@@ -19,7 +19,7 @@ var logsCmd = &cobra.Command{
 	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		runID := args[0]
-		dbPath := config.C.Paths.Database
+		dbPath := config.Get().Paths.Database
 
 		store, err := run.NewStore(dbPath)
 		if err != nil {

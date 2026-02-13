@@ -18,8 +18,8 @@ var initCmd = &cobra.Command{
 	Long:  "Create necessary directories and initialise the SQLite database for run tracking",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dirs := []string{
-			config.C.Paths.Workflows,
-			config.C.Paths.Logs,
+			config.Get().Paths.Workflows,
+			config.Get().Paths.Logs,
 		}
 
 		for _, dir := range dirs {
@@ -31,7 +31,7 @@ var initCmd = &cobra.Command{
 		}
 
 		// Initialise SQLite database
-		dbPath := config.C.Paths.Database
+		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
 			logger.L().Error("failed to initialise database", zap.String("path", dbPath), zap.Error(err))
@@ -55,15 +55,15 @@ var initCmd = &cobra.Command{
 		// Print summary
 		fmt.Println("\n✓ Project initialised successfully")
 		fmt.Printf("  Config file: %s\n", cfgFile)
-		fmt.Printf("  Workflows:  %s\n", config.C.Paths.Workflows)
-		fmt.Printf("  Logs:       %s\n", config.C.Paths.Logs)
+		fmt.Printf("  Workflows:  %s\n", config.Get().Paths.Workflows)
+		fmt.Printf("  Logs:       %s\n", config.Get().Paths.Logs)
 		fmt.Printf("  Database:   %s\n", dbPath)
 		fmt.Println("\nConfigure paths via environment variables or config file.")
 
 		logger.L().Info("project initialised",
 			zap.String("config_file", cfgFile),
-			zap.String("workflows_dir", config.C.Paths.Workflows),
-			zap.String("logs_dir", config.C.Paths.Logs),
+			zap.String("workflows_dir", config.Get().Paths.Workflows),
+			zap.String("logs_dir", config.Get().Paths.Logs),
 			zap.String("database", dbPath),
 		)
 

@@ -94,7 +94,7 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 			out, err := cmd.CombinedOutput()
 
 			// Ensure log directory exists
-			dir := filepath.Join(config.C.Paths.Logs, wr.ID)
+			dir := filepath.Join(config.Get().Paths.Logs, wr.ID)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
 			}
@@ -234,7 +234,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 			out, err := cmd.CombinedOutput()
 
 			// Ensure log directory exists
-			dir := filepath.Join(config.C.Paths.Logs, wr.ID)
+			dir := filepath.Join(config.Get().Paths.Logs, wr.ID)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
 			}

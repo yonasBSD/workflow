@@ -26,7 +26,7 @@ type rawWorkflow struct {
 func Load(path string) (*DAG, error) {
 	path = strings.TrimSuffix(path, ".toml")
 
-	filePath := filepath.Join(config.C.Paths.Workflows, path+".toml")
+	filePath := filepath.Join(config.Get().Paths.Workflows, path+".toml")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		logger.L().Error("failed to read workflow file", zap.String("path", filePath), zap.Error(err))

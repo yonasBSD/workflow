@@ -203,7 +203,7 @@ func TestDAGValidateValidTaskNames(t *testing.T) {
 // TestDAGLoadMissingWorkflowFile tests loading a non-existent workflow file.
 func TestDAGLoadMissingWorkflowFile(t *testing.T) {
 	workflowDir := t.TempDir()
-	config.C.Paths.Workflows = workflowDir
+	config.Get().Paths.Workflows = workflowDir
 
 	_, err := Load("missing")
 	if err == nil {
@@ -214,7 +214,7 @@ func TestDAGLoadMissingWorkflowFile(t *testing.T) {
 // TestDAGLoadExistingWorkflowFile tests loading an existing workflow file.
 func TestDAGLoadExistingWorkflowFile(t *testing.T) {
 	workflowDir := t.TempDir()
-	config.C.Paths.Workflows = workflowDir
+	config.Get().Paths.Workflows = workflowDir
 
 	workflowContent := `
 name = "test-workflow"

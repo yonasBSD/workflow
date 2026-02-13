@@ -46,13 +46,13 @@ func Execute() {
 // initConfig initialises configuration, logger, and validates setup.
 func initConfig() {
 	// Load configuration with optional override
-	if err := config.Load(configFile); err != nil {
+	if _, err := config.Load(configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	if config.C.LogLevel != "" {
-		logLevel = config.C.LogLevel
+	if config.Get().LogLevel != "" {
+		logLevel = config.Get().LogLevel
 	}
 
 	// Override log level if verbose flag set
@@ -64,7 +64,7 @@ func initConfig() {
 	loggerConfig := logger.Config{
 		Level:      logLevel,
 		Format:     "console",
-		OutputFile: config.C.Paths.LogsFile,
+		OutputFile: config.Get().Paths.LogsFile,
 	}
 
 	if err := logger.Init(loggerConfig); err != nil {

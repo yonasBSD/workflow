@@ -24,7 +24,7 @@ func init() {
 // TestNewExecutor tests the creation of a new Executor instance.
 func TestNewExecutor(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
@@ -45,7 +45,7 @@ func TestNewExecutor(t *testing.T) {
 // TestExecutorRunSuccess tests the successful execution of a simple workflow.
 func TestExecutorRunSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
@@ -77,7 +77,7 @@ func TestExecutorRunSuccess(t *testing.T) {
 // TestExecutorRunTaskFailure tests the execution of a workflow with a failing task.
 func TestExecutorRunTaskFailure(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
@@ -103,7 +103,7 @@ func TestExecutorRunTaskFailure(t *testing.T) {
 // TestExecutorRunContextCancellation tests the cancellation of a workflow execution.
 func TestExecutorRunContextCancellation(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
@@ -132,7 +132,7 @@ func TestExecutorRunContextCancellation(t *testing.T) {
 // TestExecutorLogFileCreation tests that log files are created for executed tasks.
 func TestExecutorLogFileCreation(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
@@ -185,7 +185,7 @@ func TestExecutorLogFileCreation(t *testing.T) {
 // TestExecutorTaskRetry tests that tasks are retried on failure.
 func TestExecutorTaskRetry(t *testing.T) {
 	tmpDir := t.TempDir()
-	config.C.Paths.Logs = tmpDir
+	config.Get().Paths.Logs = tmpDir
 
 	store, err := run.NewStore(filepath.Join(tmpDir, "test.db"))
 	if err != nil {
