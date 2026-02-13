@@ -106,10 +106,10 @@ func validateSingleWorkflow(workflowName string) error {
 
 // validateAllWorkflows validates all workflows in the directory.
 func validateAllWorkflows() error {
-	entries, err := os.ReadDir(config.C.Paths.Workflows)
+	entries, err := os.ReadDir(config.Get().Paths.Workflows)
 	if err != nil {
 		logger.L().Error("failed to read workflows directory",
-			zap.String("directory", config.C.Paths.Workflows),
+			zap.String("directory", config.Get().Paths.Workflows),
 			zap.Error(err),
 		)
 		return fmt.Errorf("failed to read workflows directory: %w", err)

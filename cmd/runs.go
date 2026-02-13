@@ -28,7 +28,7 @@ var runsCmd = &cobra.Command{
 	Short: "List workflow runs",
 	Long:  "List all workflow runs with optional filtering by workflow name and status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dbPath := config.C.Paths.Database
+		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
 			logger.L().Error("failed to initialise run store", zap.Error(err))

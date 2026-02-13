@@ -28,6 +28,7 @@ Most workflow orchestrators are built for distributed systems first.
 - One static binary
 - No background services
 - Persistent run history
+- Stateful resume from failure
 - Clear failure semantics
 - Easy debugging via logs and metadata
 
@@ -38,12 +39,6 @@ It intentionally focuses on the **local execution problem** and does it well.
 ## Demonstration
 
 ![](assets/demo.gif)
-
-
-
-## Key Features
-  - Designed to be versioned, reviewed, and diffed like code
-  - No internet required; perfect for secure or remote environments
 
 
 ## Key Features
@@ -451,7 +446,7 @@ workflow is optimised for **local execution**, not orchestration at scale.
 
 ## Roadmap (high level)
 
-- Optional taks support
+- Optional tasks support
 - Improved DAG visualisation
 - Parallel execution (local)
 - Workflow templates

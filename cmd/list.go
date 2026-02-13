@@ -46,7 +46,7 @@ var listCmd = &cobra.Command{
 	Short: "List workflows",
 	Long:  "List all available workflows with optional run statistics",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		entries, err := os.ReadDir(config.C.Paths.Workflows)
+		entries, err := os.ReadDir(config.Get().Paths.Workflows)
 		if err != nil {
 			logger.L().Error("list command failed", zap.Error(err))
 			return fmt.Errorf("failed to read workflows directory: %w", err)
@@ -84,8 +84,8 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(workflows) == 0 {
-			logger.L().Debug("no workflows found", zap.String("directory", config.C.Paths.Workflows))
-			fmt.Printf("No workflows found in %s\n", config.C.Paths.Workflows)
+			logger.L().Debug("no workflows found", zap.String("directory", config.Get().Paths.Workflows))
+			fmt.Printf("No workflows found in %s\n", config.Get().Paths.Workflows)
 			return nil
 		}
 
@@ -95,7 +95,7 @@ var listCmd = &cobra.Command{
 		})
 
 		logger.L().Info("listing available workflows",
-			zap.String("directory", config.C.Paths.Workflows),
+			zap.String("directory", config.Get().Paths.Workflows),
 			zap.Int("count", len(workflows)),
 		)
 
@@ -113,7 +113,7 @@ var listCmd = &cobra.Command{
 
 // getRunStats queries the database for workflow run statistics.
 func getRunStats(workflowName string) (*runStats, error) {
-	dbPath := config.C.Paths.Database
+	dbPath := config.Get().Paths.Database
 	store, err := run.NewStore(dbPath)
 	if err != nil {
 		return nil, err

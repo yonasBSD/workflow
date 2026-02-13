@@ -26,10 +26,10 @@ func TestExecutorIntegrationSuccess(t *testing.T) {
 	fs := helpers.NewTestFS(t)
 	defer fs.Cleanup()
 
-	config.C.Paths.Logs = fs.Path("logs")
-	config.C.Paths.Database = fs.Path("test.db")
+	config.Get().Paths.Logs = fs.Path("logs")
+	config.Get().Paths.Database = fs.Path("test.db")
 
-	store, err := run.NewStore(config.C.Paths.Database)
+	store, err := run.NewStore(config.Get().Paths.Database)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -107,10 +107,10 @@ func TestExecutorIntegrationTaskFailure(t *testing.T) {
 	fs := helpers.NewTestFS(t)
 	defer fs.Cleanup()
 
-	config.C.Paths.Logs = fs.Path("logs")
-	config.C.Paths.Database = fs.Path("test.db")
+	config.Get().Paths.Logs = fs.Path("logs")
+	config.Get().Paths.Database = fs.Path("test.db")
 
-	store, err := run.NewStore(config.C.Paths.Database)
+	store, err := run.NewStore(config.Get().Paths.Database)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -176,10 +176,10 @@ func TestExecutorIntegrationTaskRetry(t *testing.T) {
 	fs := helpers.NewTestFS(t)
 	defer fs.Cleanup()
 
-	config.C.Paths.Logs = fs.Path("logs")
-	config.C.Paths.Database = fs.Path("test.db")
+	config.Get().Paths.Logs = fs.Path("logs")
+	config.Get().Paths.Database = fs.Path("test.db")
 
-	store, err := run.NewStore(config.C.Paths.Database)
+	store, err := run.NewStore(config.Get().Paths.Database)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -230,10 +230,10 @@ func TestExecutorIntegrationComplexWorkflow(t *testing.T) {
 	fs := helpers.NewTestFS(t)
 	defer fs.Cleanup()
 
-	config.C.Paths.Logs = fs.Path("logs")
-	config.C.Paths.Database = fs.Path("test.db")
+	config.Get().Paths.Logs = fs.Path("logs")
+	config.Get().Paths.Database = fs.Path("test.db")
 
-	store, err := run.NewStore(config.C.Paths.Database)
+	store, err := run.NewStore(config.Get().Paths.Database)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -297,10 +297,10 @@ func TestExecutorIntegrationContextCancellation(t *testing.T) {
 	fs := helpers.NewTestFS(t)
 	defer fs.Cleanup()
 
-	config.C.Paths.Logs = fs.Path("logs")
-	config.C.Paths.Database = fs.Path("test.db")
+	config.Get().Paths.Logs = fs.Path("logs")
+	config.Get().Paths.Database = fs.Path("test.db")
 
-	store, err := run.NewStore(config.C.Paths.Database)
+	store, err := run.NewStore(config.Get().Paths.Database)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

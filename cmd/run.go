@@ -65,7 +65,7 @@ var runCmd = &cobra.Command{
 		}()
 
 		// Initialise run store
-		dbPath := config.C.Paths.Database
+		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
 			logger.L().Error("failed to initialise run store", zap.Error(err))
