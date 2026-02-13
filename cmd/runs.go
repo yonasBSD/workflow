@@ -11,7 +11,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var (
@@ -31,14 +30,14 @@ var runsCmd = &cobra.Command{
 		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
-			logger.L().Error("failed to initialise run store", zap.Error(err))
+			logger.Error("failed to initialise run store", "error", err)
 			return fmt.Errorf("failed to initialise run store: %w", err)
 		}
 		defer store.Close()
 
 		runs, err := store.ListRuns(runsWorkflow, runsStatus, runsLimit, runsOffset)
 		if err != nil {
-			logger.L().Error("failed to list runs", zap.Error(err))
+			logger.Error("failed to list runs", "error", err)
 			return fmt.Errorf("failed to list runs: %w", err)
 		}
 
@@ -77,7 +76,7 @@ func printRunsTable(runs []*run.WorkflowRun) error {
 		)
 	}
 
-	logger.L().Info("displayed runs", zap.Int("count", len(runs)))
+	logger.Info("displayed runs", "count", len(runs))
 
 	w.Flush()
 	return nil
@@ -96,7 +95,7 @@ func printRunsJSON(runs []*run.WorkflowRun) error {
 		fmt.Println(out.String())
 	}
 
-	logger.L().Info("displayed runs in JSON", zap.Int("count", len(runs)))
+	logger.Info("displayed runs in JSON", "count", len(runs))
 
 	return nil
 }

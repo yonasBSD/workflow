@@ -13,7 +13,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var (
@@ -32,14 +31,14 @@ var runCmd = &cobra.Command{
 		// Load workflow DAG
 		d, err := dag.Load(workflowName)
 		if err != nil {
-			logger.L().Error("failed to load workflow", zap.String("workflow", workflowName), zap.Error(err))
+			logger.Error("failed to load workflow", "workflow", workflowName, "error", err)
 			return err
 		}
 
 		if runDryRun {
 			plan, err := planRun(d)
 			if err != nil {
-				logger.L().Error("failed to generate execution plan", zap.String("workflow", workflowName), zap.Error(err))
+				logger.Error("failed to generate execution plan", "workflow", workflowName, "error", err)
 				return fmt.Errorf("failed to generate execution plan: %w", err)
 			}
 			if runJSON {
@@ -68,7 +67,7 @@ var runCmd = &cobra.Command{
 		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
-			logger.L().Error("failed to initialise run store", zap.Error(err))
+			logger.Error("failed to initialise run store", "error", err)
 			return fmt.Errorf("failed to initialise run store: %w", err)
 		}
 		defer store.Close()
@@ -76,7 +75,7 @@ var runCmd = &cobra.Command{
 		// Create executor and run workflow
 		executor := executor.NewExecutor(store)
 		if err := executor.Run(ctx, d); err != nil {
-			logger.L().Error("workflow execution failed", zap.String("workflow", workflowName), zap.Error(err))
+			logger.Error("workflow execution failed", "workflow", workflowName, "error", err)
 			return err
 		}
 

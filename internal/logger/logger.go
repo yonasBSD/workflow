@@ -2,21 +2,18 @@ package logger
 
 import (
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
-	l    *zap.Logger
+	l    *slog.Logger
 	once sync.Once
 	logW io.WriteCloser
 )
 
-// Define logger behavior
 type Config struct {
 	Level      string // debug, info, warn, error
 	Format     string // json or console
@@ -26,27 +23,13 @@ type Config struct {
 func Init(cfg Config) error {
 	var err error
 	once.Do(func() {
-		var lvl zapcore.Level
-		if err = lvl.UnmarshalText([]byte(cfg.Level)); err != nil {
-			lvl = zapcore.InfoLevel
+		var lvl slog.Level
+		if e := lvl.UnmarshalText([]byte(cfg.Level)); e != nil {
+			lvl = slog.LevelInfo
 		}
 
-		var enc zapcore.Encoder
-		if cfg.Format == "json" {
-			enc = zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
-		} else {
-			encCfg := zap.NewDevelopmentEncoderConfig()
-			if cfg.OutputFile == "" {
-				encCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-			}
-			enc = zapcore.NewConsoleEncoder(encCfg)
-		}
-
-		var ws zapcore.WriteSyncer
-
-		if cfg.OutputFile == "" {
-			ws = zapcore.AddSync(os.Stdout)
-		} else {
+		var w io.Writer = os.Stdout
+		if cfg.OutputFile != "" {
 			dir := filepath.Dir(cfg.OutputFile)
 			if dir != "." {
 				if err = os.MkdirAll(dir, 0755); err != nil {
@@ -57,30 +40,49 @@ func Init(cfg Config) error {
 			if err != nil {
 				return
 			}
-			ws = zapcore.AddSync(logW)
+			w = logW
 		}
 
-		core := zapcore.NewCore(enc, ws, lvl)
-		l = zap.New(core)
-		// l = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
-	})
+		opts := &slog.HandlerOptions{Level: lvl}
+		var h slog.Handler
+		if cfg.Format == "json" {
+			h = slog.NewJSONHandler(w, opts)
+		} else {
+			h = slog.NewTextHandler(w, opts)
+		}
 
+		l = slog.New(h)
+	})
 	return err
 }
 
-func L() *zap.Logger {
+func must() *slog.Logger {
 	if l == nil {
 		panic("logger not initialised. Call logger.Init() first")
 	}
 	return l
 }
 
-// Flush buffers
+// Sync closes any open log file.
 func Sync() {
-	if l != nil {
-		_ = l.Sync()
-	}
 	if logW != nil {
 		_ = logW.Close()
 	}
+}
+
+// Package-level wrappers.
+func Debug(msg string, args ...any) { must().Debug(msg, args...) }
+func Info(msg string, args ...any)  { must().Info(msg, args...) }
+func Warn(msg string, args ...any)  { must().Warn(msg, args...) }
+func Error(msg string, args ...any) { must().Error(msg, args...) }
+
+// With returns a child logger with the given attributes pre-attached.
+func With(args ...any) *slog.Logger { return must().With(args...) }
+
+// Reset tears down the logger and allows Init to be called again. Intended for tests.
+func Reset() {
+	Sync()
+	l = nil
+	logW = nil
+	once = sync.Once{}
 }

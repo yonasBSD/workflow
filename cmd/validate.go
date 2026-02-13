@@ -11,7 +11,6 @@ import (
 	"github.com/joelfokou/workflow/internal/dag"
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var (
@@ -44,9 +43,9 @@ var validateCmd = &cobra.Command{
 func validateSingleWorkflow(workflowName string) error {
 	d, err := dag.Load(workflowName)
 	if err != nil {
-		logger.L().Error("workflow validation failed",
-			zap.String("workflow", workflowName),
-			zap.Error(err),
+		logger.Error("workflow validation failed",
+			"workflow", workflowName,
+			"error", err,
 		)
 
 		result := validateResult{
@@ -66,9 +65,9 @@ func validateSingleWorkflow(workflowName string) error {
 	// Additional validation checks
 	order, err := d.TopologicalSort()
 	if err != nil {
-		logger.L().Error("topological sort failed",
-			zap.String("workflow", workflowName),
-			zap.Error(err),
+		logger.Error("topological sort failed",
+			"workflow", workflowName,
+			"error", err,
 		)
 
 		result := validateResult{
@@ -90,10 +89,10 @@ func validateSingleWorkflow(workflowName string) error {
 		Valid: true,
 	}
 
-	logger.L().Info("workflow validation successful",
-		zap.String("workflow", workflowName),
-		zap.Int("tasks", len(d.Tasks)),
-		zap.Int("execution_order_length", len(order)),
+	logger.Info("workflow validation successful",
+		"workflow", workflowName,
+		"tasks", len(d.Tasks),
+		"execution_order_length", len(order),
 	)
 
 	if validateJSON {
@@ -108,9 +107,9 @@ func validateSingleWorkflow(workflowName string) error {
 func validateAllWorkflows() error {
 	entries, err := os.ReadDir(config.Get().Paths.Workflows)
 	if err != nil {
-		logger.L().Error("failed to read workflows directory",
-			zap.String("directory", config.Get().Paths.Workflows),
-			zap.Error(err),
+		logger.Error("failed to read workflows directory",
+			"directory", config.Get().Paths.Workflows,
+			"error", err,
 		)
 		return fmt.Errorf("failed to read workflows directory: %w", err)
 	}
@@ -127,9 +126,9 @@ func validateAllWorkflows() error {
 		d, err := dag.Load(workflowName)
 
 		if err != nil {
-			logger.L().Warn("workflow validation failed",
-				zap.String("workflow", workflowName),
-				zap.Error(err),
+			logger.Warn("workflow validation failed",
+				"workflow", workflowName,
+				"error", err,
 			)
 
 			results = append(results, validateResult{
@@ -143,9 +142,9 @@ func validateAllWorkflows() error {
 
 		// Check topological sort
 		if _, err := d.TopologicalSort(); err != nil {
-			logger.L().Warn("topological sort failed",
-				zap.String("workflow", workflowName),
-				zap.Error(err),
+			logger.Warn("topological sort failed",
+				"workflow", workflowName,
+				"error", err,
 			)
 
 			results = append(results, validateResult{
@@ -193,11 +192,11 @@ func printValidateTable(results []validateResult, failedCount int) error {
 	fmt.Printf("\n%d/%d workflows valid\n", len(results)-failedCount, len(results))
 
 	if failedCount > 0 {
-		logger.L().Error("validation failed", zap.Int("failed_count", failedCount), zap.Int("total_count", len(results)))
+		logger.Error("validation failed", "failed_count", failedCount, "total_count", len(results))
 		return fmt.Errorf("%d workflow(s) failed validation", failedCount)
 	}
 
-	logger.L().Info("all workflows validated successfully", zap.Int("count", len(results)))
+	logger.Info("all workflows validated successfully", "count", len(results))
 	return nil
 }
 

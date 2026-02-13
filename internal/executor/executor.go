@@ -14,7 +14,6 @@ import (
 	"github.com/joelfokou/workflow/internal/dag"
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
-	"go.uber.org/zap"
 )
 
 // Executor is responsible for executing workflows defined as DAGs.
@@ -33,7 +32,7 @@ func NewExecutor(store *run.Store) *Executor {
 
 // Run executes the given DAG workflow.
 func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
-	logger.L().Info("running workflow", zap.String("workflow", d.Name))
+	logger.Info("running workflow", "workflow", d.Name)
 	fmt.Println("Running workflow:", d.Name)
 
 	dagHash, err := d.ComputeHash()
@@ -52,12 +51,12 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 		wr.Status = run.StatusFailed
 		wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 		_ = e.RunStore.Update(wr)
-		logger.L().Error("topological sort error", zap.String("workflow", d.Name), zap.Error(err))
+		logger.Error("topological sort error", "workflow", d.Name, "error", err)
 		return fmt.Errorf("topological sort error: %w", err)
 	}
 
 	for _, t := range order {
-		logger.L().Info("running task", zap.String("task", t.Name))
+		logger.Info("running task", "task", t.Name)
 		fmt.Println("Running task:", t.Name)
 
 		select {
@@ -66,7 +65,7 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 			wr.Status = run.StatusFailed
 			wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 			_ = e.RunStore.Update(wr)
-			logger.L().Error("workflow cancelled", zap.String("workflow", d.Name), zap.Error(ctx.Err()))
+			logger.Error("workflow cancelled", "workflow", d.Name, "error", ctx.Err())
 			return fmt.Errorf("workflow cancelled: %w", ctx.Err())
 		default:
 		}
@@ -80,7 +79,7 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 		}
 		err = e.RunStore.SaveTaskRun(tr)
 		if err != nil {
-			logger.L().Error("failed to save task run", zap.String("task", t.Name), zap.Error(err))
+			logger.Error("failed to save task run", "task", t.Name, "error", err)
 			return err
 		}
 
@@ -125,7 +124,7 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 				tr.EndedAt = sql.NullTime{Time: now, Valid: true}
 				_ = e.RunStore.UpdateTaskRun(tr)
 
-				logger.L().Info("task completed", zap.String("task", t.Name))
+				logger.Info("task completed", "task", t.Name)
 				fmt.Println("Task completed:", t.Name)
 				break
 			}
@@ -140,14 +139,14 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 				wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 				_ = e.RunStore.Update(wr)
 
-				logger.L().Error("task failed => workflow failed", zap.String("task", t.Name), zap.String("workflow", d.Name), zap.Error(err))
+				logger.Error("task failed => workflow failed", "task", t.Name, "workflow", d.Name, "error", err)
 				return fmt.Errorf("task %s failed => workflow %s failed: %w", t.Name, d.Name, err)
 			}
 
-			logger.L().Debug("retrying task",
-				zap.String("workflow", d.Name),
-				zap.String("task", t.Name),
-				zap.Int("attempt", attempt),
+			logger.Debug("retrying task",
+				"workflow", d.Name,
+				"task", t.Name,
+				"attempt", attempt,
 			)
 			fmt.Println("Retrying:", t.Name)
 		}
@@ -158,18 +157,18 @@ func (e *Executor) Run(ctx context.Context, d *dag.DAG) error {
 	wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 	e.RunStore.Update(wr)
 
-	logger.L().Info("workflow completed", zap.String("workflow", d.Name))
+	logger.Info("workflow completed", "workflow", d.Name)
 	fmt.Println("Workflow completed:", d.Name)
 	return nil
 }
 
 func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 	fmt.Printf("Resuming workflow run: %s\n", wr.ID)
-	logger.L().Info("resuming workflow", zap.String("workflow", wr.Workflow), zap.String("run_id", wr.ID))
+	logger.Info("resuming workflow", "workflow", wr.Workflow, "run_id", wr.ID)
 
 	d, err := dag.Load(wr.Workflow)
 	if err != nil {
-		logger.L().Error("failed to load workflow", zap.String("workflow", wr.Workflow), zap.Error(err))
+		logger.Error("failed to load workflow", "workflow", wr.Workflow, "error", err)
 		return fmt.Errorf("failed to load workflow '%s': %w", wr.Workflow, err)
 	}
 
@@ -179,7 +178,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 		wr.Status = run.StatusFailed
 		wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 		_ = e.RunStore.Update(wr)
-		logger.L().Error("topological sort error", zap.String("workflow", d.Name), zap.Error(err))
+		logger.Error("topological sort error", "workflow", d.Name, "error", err)
 		return fmt.Errorf("topological sort error: %w", err)
 	}
 
@@ -187,15 +186,15 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 		// Check if task was already completed
 		tr, err := e.RunStore.GetTaskRun(wr.ID, t.Name)
 		if err != nil && err != sql.ErrNoRows {
-			logger.L().Error("failed to load task run", zap.String("task", t.Name), zap.Error(err))
+			logger.Error("failed to load task run", "task", t.Name, "error", err)
 			return err
 		}
 		if tr != nil && tr.Status == run.TaskSuccess {
-			logger.L().Info("skipping completed task", zap.String("task", t.Name))
+			logger.Info("skipping completed task", "task", t.Name)
 			fmt.Println("Skipping completed task:", t.Name)
 			continue
 		}
-		logger.L().Info("running task", zap.String("task", t.Name))
+		logger.Info("running task", "task", t.Name)
 		fmt.Println("Running task:", t.Name)
 
 		select {
@@ -204,7 +203,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 			wr.Status = run.StatusFailed
 			wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 			_ = e.RunStore.Update(wr)
-			logger.L().Error("workflow cancelled", zap.String("workflow", d.Name), zap.Error(ctx.Err()))
+			logger.Error("workflow cancelled", "workflow", d.Name, "error", ctx.Err())
 			return fmt.Errorf("workflow cancelled: %w", ctx.Err())
 		default:
 		}
@@ -219,7 +218,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 			}
 			err = e.RunStore.SaveTaskRun(tr)
 			if err != nil {
-				logger.L().Error("failed to save task run", zap.String("task", t.Name), zap.Error(err))
+				logger.Error("failed to save task run", "task", t.Name, "error", err)
 				return err
 			}
 		}
@@ -265,7 +264,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 				tr.EndedAt = sql.NullTime{Time: now, Valid: true}
 				_ = e.RunStore.UpdateTaskRun(tr)
 
-				logger.L().Info("task completed", zap.String("task", t.Name))
+				logger.Info("task completed", "task", t.Name)
 				fmt.Println("Task completed:", t.Name)
 				break
 			}
@@ -280,14 +279,14 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 				wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 				_ = e.RunStore.Update(wr)
 
-				logger.L().Error("task failed => workflow failed", zap.String("task", t.Name), zap.String("workflow", d.Name), zap.Error(err))
+				logger.Error("task failed => workflow failed", "task", t.Name, "workflow", d.Name, "error", err)
 				return fmt.Errorf("task %s failed => workflow %s failed: %w", t.Name, d.Name, err)
 			}
 
-			logger.L().Debug("retrying task",
-				zap.String("workflow", d.Name),
-				zap.String("task", t.Name),
-				zap.Int("attempt", attempt),
+			logger.Debug("retrying task",
+				"workflow", d.Name,
+				"task", t.Name,
+				"attempt", attempt,
 			)
 			fmt.Println("Retrying:", t.Name)
 		}
@@ -298,7 +297,7 @@ func (e *Executor) Resume(ctx context.Context, wr *run.WorkflowRun) error {
 	wr.EndedAt = sql.NullTime{Time: now, Valid: true}
 	e.RunStore.Update(wr)
 
-	logger.L().Info("workflow resumed and completed", zap.String("workflow", d.Name))
+	logger.Info("workflow resumed and completed", "workflow", d.Name)
 	fmt.Println("Workflow resumed and completed:", d.Name)
 
 	return nil

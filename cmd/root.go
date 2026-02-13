@@ -8,7 +8,6 @@ import (
 	"github.com/joelfokou/workflow/internal/config"
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var (
@@ -72,8 +71,8 @@ func initConfig() {
 		os.Exit(1)
 	}
 
-	logger.L().Debug("configuration loaded", zap.String("config_path", configFile))
-	logger.L().Debug("logger initialised", zap.String("level", logLevel))
+	logger.Debug("configuration loaded", "config_path", configFile)
+	logger.Debug("logger initialised", "level", logLevel)
 }
 
 func init() {

@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/joelfokou/workflow/internal/logger"
-	"go.uber.org/zap"
 )
 
 // TopologicalSort returns tasks in correct execution order.
@@ -52,7 +51,7 @@ func (d *DAG) TopologicalSort() ([]*Task, error) {
 
 	// If result doesn't include all tasks then a cycle exists
 	if len(result) != len(d.Tasks) {
-		logger.L().Error("cycle detected in DAG", zap.String("workflow", d.Name))
+		logger.Error("cycle detected in DAG", "workflow", d.Name)
 		return nil, fmt.Errorf("cycle detected in DAG")
 	}
 

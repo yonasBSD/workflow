@@ -5,7 +5,6 @@ import (
 	"regexp"
 
 	"github.com/joelfokou/workflow/internal/logger"
-	"go.uber.org/zap"
 )
 
 // taskNamePattern defines valid characters for task names
@@ -46,14 +45,14 @@ func (d *DAG) Validate() error {
 
 		// Check task has a command
 		if t.Cmd == "" {
-			logger.L().Error("task missing command", zap.String("task", name))
+			logger.Error("task missing command", "task", name)
 			return fmt.Errorf("task %s has no command defined", name)
 		}
 
 		// Check dependencies exist
 		for _, dep := range t.DependsOn {
 			if _, ok := d.Tasks[dep]; !ok {
-				logger.L().Error("missing dependency", zap.String("task", name), zap.String("dependency", dep))
+				logger.Error("missing dependency", "task", name, "dependency", dep)
 				return fmt.Errorf("task %s depends on missing task %s", name, dep)
 			}
 		}
