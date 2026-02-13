@@ -11,7 +11,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var resumeCmd = &cobra.Command{
@@ -26,7 +25,7 @@ var resumeCmd = &cobra.Command{
 		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
-			logger.L().Error("failed to initialise run store", zap.Error(err))
+			logger.Error("failed to initialise run store", "error", err)
 			return fmt.Errorf("failed to initialise run store: %w", err)
 		}
 		defer store.Close()
@@ -34,13 +33,13 @@ var resumeCmd = &cobra.Command{
 		// Verify run exists
 		workflowRun, err := store.Load(runID)
 		if err != nil {
-			logger.L().Error("run not found", zap.String("run_id", runID), zap.Error(err))
+			logger.Error("run not found", "run_id", runID, "error", err)
 			return fmt.Errorf("run '%s' not found: %w", runID, err)
 		}
 
 		// Check if the run is in a resumable state
 		if workflowRun.Status != run.StatusFailed {
-			logger.L().Warn("workflow run is not in a resumable state", zap.String("run_id", runID), zap.String("status", string(workflowRun.Status)))
+			logger.Warn("workflow run is not in a resumable state", "run_id", runID, "status", string(workflowRun.Status))
 			return fmt.Errorf("workflow run '%s' is not in a resumable state (current status: %s)", runID, workflowRun.Status)
 		}
 
@@ -61,7 +60,7 @@ var resumeCmd = &cobra.Command{
 		executor := executor.NewExecutor(store)
 		err = executor.Resume(ctx, workflowRun)
 		if err != nil {
-			logger.L().Error("failed to resume workflow run", zap.String("run_id", runID), zap.Error(err))
+			logger.Error("failed to resume workflow run", "run_id", runID, "error", err)
 			return fmt.Errorf("failed to resume workflow run '%s': %w", runID, err)
 		}
 

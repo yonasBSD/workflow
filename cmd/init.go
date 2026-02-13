@@ -8,7 +8,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 // initCmd initialises a new workflow project by creating necessary directories based on the configuration settings and initialises the SQLite database and creates example files.
@@ -24,17 +23,17 @@ var initCmd = &cobra.Command{
 
 		for _, dir := range dirs {
 			if err := os.MkdirAll(dir, 0755); err != nil {
-				logger.L().Error("failed to create directory", zap.String("path", dir), zap.Error(err))
+				logger.Error("failed to create directory", "path", dir, "error", err)
 				return fmt.Errorf("failed to create directory %s: %w", dir, err)
 			}
-			logger.L().Debug("directory created or already exists", zap.String("path", dir))
+			logger.Debug("directory created or already exists", "path", dir)
 		}
 
 		// Initialise SQLite database
 		dbPath := config.Get().Paths.Database
 		store, err := run.NewStore(dbPath)
 		if err != nil {
-			logger.L().Error("failed to initialise database", zap.String("path", dbPath), zap.Error(err))
+			logger.Error("failed to initialise database", "path", dbPath, "error", err)
 			return fmt.Errorf("failed to initialise database: %w", err)
 		}
 		store.Close()
@@ -44,12 +43,12 @@ var initCmd = &cobra.Command{
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			defaultConfig := config.DefaultConfig()
 			if err := os.WriteFile(cfgFile, []byte(defaultConfig), 0644); err != nil {
-				logger.L().Error("failed to write config file", zap.String("path", cfgFile), zap.Error(err))
+				logger.Error("failed to write config file", "path", cfgFile, "error", err)
 				return fmt.Errorf("failed to write config file: %w", err)
 			}
-			logger.L().Info("config file created", zap.String("path", cfgFile))
+			logger.Info("config file created", "path", cfgFile)
 		} else {
-			logger.L().Info("config file already exists, skipping creation", zap.String("path", cfgFile))
+			logger.Info("config file already exists, skipping creation", "path", cfgFile)
 		}
 
 		// Print summary
@@ -60,11 +59,11 @@ var initCmd = &cobra.Command{
 		fmt.Printf("  Database:   %s\n", dbPath)
 		fmt.Println("\nConfigure paths via environment variables or config file.")
 
-		logger.L().Info("project initialised",
-			zap.String("config_file", cfgFile),
-			zap.String("workflows_dir", config.Get().Paths.Workflows),
-			zap.String("logs_dir", config.Get().Paths.Logs),
-			zap.String("database", dbPath),
+		logger.Info("project initialised",
+			"config_file", cfgFile,
+			"workflows_dir", config.Get().Paths.Workflows,
+			"logs_dir", config.Get().Paths.Logs,
+			"database", dbPath,
 		)
 
 		return nil

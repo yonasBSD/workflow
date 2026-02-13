@@ -13,7 +13,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 // workflowInfo holds metadata about a workflow.
@@ -48,7 +47,7 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		entries, err := os.ReadDir(config.Get().Paths.Workflows)
 		if err != nil {
-			logger.L().Error("list command failed", zap.Error(err))
+			logger.Error("list command failed", "error", err)
 			return fmt.Errorf("failed to read workflows directory: %w", err)
 		}
 
@@ -61,7 +60,7 @@ var listCmd = &cobra.Command{
 				// Load workflow definition to get task count
 				d, err := dag.Load(name)
 				if err != nil {
-					logger.L().Warn("failed to load workflow definition", zap.String("workflow", name), zap.Error(err))
+					logger.Warn("failed to load workflow definition", "workflow", name, "error", err)
 					info.Tasks = 0
 					info.Valid = false
 				} else {
@@ -84,7 +83,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(workflows) == 0 {
-			logger.L().Debug("no workflows found", zap.String("directory", config.Get().Paths.Workflows))
+			logger.Debug("no workflows found", "directory", config.Get().Paths.Workflows)
 			fmt.Printf("No workflows found in %s\n", config.Get().Paths.Workflows)
 			return nil
 		}
@@ -94,9 +93,9 @@ var listCmd = &cobra.Command{
 			return workflows[i].Name < workflows[j].Name
 		})
 
-		logger.L().Info("listing available workflows",
-			zap.String("directory", config.Get().Paths.Workflows),
-			zap.Int("count", len(workflows)),
+		logger.Info("listing available workflows",
+			"directory", config.Get().Paths.Workflows,
+			"count", len(workflows),
 		)
 
 		if listJSON {

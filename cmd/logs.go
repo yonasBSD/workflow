@@ -8,7 +8,6 @@ import (
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/joelfokou/workflow/internal/run"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 // logsCmd shows logs for a specific run or task within a run. It queries the database for task information and reads the corresponding log files.
@@ -23,7 +22,7 @@ var logsCmd = &cobra.Command{
 
 		store, err := run.NewStore(dbPath)
 		if err != nil {
-			logger.L().Error("failed to initialise run store", zap.Error(err))
+			logger.Error("failed to initialise run store", "error", err)
 			return fmt.Errorf("failed to initialise run store: %w", err)
 		}
 		defer store.Close()
@@ -31,14 +30,14 @@ var logsCmd = &cobra.Command{
 		// Verify run exists
 		workflowRun, err := store.Load(runID)
 		if err != nil {
-			logger.L().Error("run not found", zap.String("run_id", runID), zap.Error(err))
+			logger.Error("run not found", "run_id", runID, "error", err)
 			return fmt.Errorf("run '%s' not found: %w", runID, err)
 		}
 
 		// Load all tasks for this run
 		tasks, err := store.LoadTaskRuns(runID)
 		if err != nil {
-			logger.L().Error("failed to load tasks for run", zap.String("run_id", runID), zap.Error(err))
+			logger.Error("failed to load tasks for run", "run_id", runID, "error", err)
 			return fmt.Errorf("failed to load tasks for run '%s': %w", runID, err)
 		}
 
@@ -71,11 +70,11 @@ func showRunLogs(workflowRun *run.WorkflowRun, tasks []run.TaskRun) error {
 		if task.LogPath != "" {
 			content, err := os.ReadFile(task.LogPath)
 			if err != nil {
-				logger.L().Warn("failed to read task log file",
-					zap.String("run_id", workflowRun.ID),
-					zap.String("task", task.Name),
-					zap.String("file", task.LogPath),
-					zap.Error(err),
+				logger.Warn("failed to read task log file",
+					"run_id", workflowRun.ID,
+					"task", task.Name,
+					"file", task.LogPath,
+					"error", err,
 				)
 				fmt.Printf("  (Could not read log file: %v)\n", err)
 			} else {
@@ -90,7 +89,7 @@ func showRunLogs(workflowRun *run.WorkflowRun, tasks []run.TaskRun) error {
 		}
 	}
 
-	logger.L().Info("displayed logs for run", zap.String("run_id", workflowRun.ID))
+	logger.Info("displayed logs for run", "run_id", workflowRun.ID)
 
 	return nil
 }
@@ -107,7 +106,7 @@ func showTaskLogs(workflowRun *run.WorkflowRun, tasks []run.TaskRun, taskName st
 	}
 
 	if targetTask == nil {
-		logger.L().Error("task not found in run", zap.String("run_id", workflowRun.ID), zap.String("task", taskName))
+		logger.Error("task not found in run", "run_id", workflowRun.ID, "task", taskName)
 		return fmt.Errorf("task '%s' not found in run '%s'", taskName, workflowRun.ID)
 	}
 
@@ -131,11 +130,11 @@ func showTaskLogs(workflowRun *run.WorkflowRun, tasks []run.TaskRun, taskName st
 	if targetTask.LogPath != "" {
 		content, err := os.ReadFile(targetTask.LogPath)
 		if err != nil {
-			logger.L().Error("failed to read task log file",
-				zap.String("run_id", workflowRun.ID),
-				zap.String("task", taskName),
-				zap.String("file", targetTask.LogPath),
-				zap.Error(err),
+			logger.Error("failed to read task log file",
+				"run_id", workflowRun.ID,
+				"task", taskName,
+				"file", targetTask.LogPath,
+				"error", err,
 			)
 			return fmt.Errorf("could not read log file for task '%s': %w", taskName, err)
 		}
@@ -149,9 +148,9 @@ func showTaskLogs(workflowRun *run.WorkflowRun, tasks []run.TaskRun, taskName st
 		fmt.Println(targetTask.LastError)
 	}
 
-	logger.L().Info("displayed logs for task",
-		zap.String("run_id", workflowRun.ID),
-		zap.String("task", taskName),
+	logger.Info("displayed logs for task",
+		"run_id", workflowRun.ID,
+		"task", taskName,
 	)
 
 	return nil

@@ -8,7 +8,6 @@ import (
 	"github.com/joelfokou/workflow/internal/dag"
 	"github.com/joelfokou/workflow/internal/logger"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var (
@@ -28,14 +27,14 @@ var graphCmd = &cobra.Command{
 
 		d, err := dag.Load(workflowName)
 		if err != nil {
-			logger.L().Error("failed to load workflow", zap.String("workflow", workflowName), zap.Error(err))
+			logger.Error("failed to load workflow", "workflow", workflowName, "error", err)
 			return fmt.Errorf("failed to load workflow %s: %w", workflowName, err)
 		}
 
-		logger.L().Info("rendering workflow graph",
-			zap.String("workflow", workflowName),
-			zap.String("format", graphFormat),
-			zap.Int("tasks", len(d.Tasks)),
+		logger.Info("rendering workflow graph",
+			"workflow", workflowName,
+			"format", graphFormat,
+			"tasks", len(d.Tasks),
 		)
 
 		switch graphFormat {
