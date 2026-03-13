@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/silocorp/workflow/internal/config"
 	"github.com/silocorp/workflow/internal/logger"
 	"github.com/silocorp/workflow/internal/security"
-	"github.com/pelletier/go-toml/v2"
 )
 
 type Parser struct {

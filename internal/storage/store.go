@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/silocorp/workflow/internal/logger"
 	"github.com/segmentio/ksuid"
+	"github.com/silocorp/workflow/internal/logger"
 	_ "modernc.org/sqlite"
 )
 

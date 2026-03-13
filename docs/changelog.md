@@ -4,7 +4,7 @@ All notable changes to `wf` are documented here. This project follows [Semantic 
 
 ---
 
-## [0.2.0] — 2026-03-09
+## [0.2.0] — 2026-03-13
 
 Expands `wf` from a basic sequential workflow runner into a full infrastructure automation runtime. The execution engine, storage layer, and DAG model were substantially redesigned. Six new CLI commands, three execution modes, and a formal security model were added. The logger and config subsystems were refactored.
 
@@ -106,6 +106,16 @@ Expands `wf` from a basic sequential workflow runner into a full infrastructure 
 - CI `lint` job — runs golangci-lint v2 on every push/PR
 - CI `example validation` step — runs `TestExamplesValidate` on every push/PR across all three OS targets
 - CI `benchmarks` step — runs all benchmarks on every push/PR
+
+#### Release
+- GoReleaser ldflags version injection wired through `main.go` → `cmd.SetVersionInfo()` — `wf --version` now shows build version, commit hash, and build date
+- SBOM generation via Syft integrated into the release workflow
+- `-j` short flag added for `--json` on `wf validate` and `wf run`
+
+#### Branding & Organisation
+- Repository migrated to `github.com/silocorp/workflow` — Go module path, all imports, install script, GoReleaser config, docs, and CI updated
+- Placeholder logo (`docs/assets/logo.svg`) added; used as both logo and favicon in docs
+- README redesigned with centered header, logo, and tagline
 
 ### Changed
 
