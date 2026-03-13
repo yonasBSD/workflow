@@ -1,0 +1,342 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# cost-modeling.toml  ·  Infrastructure Cost Modeling
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Engineering / Finance / FinOps
+#
+# Features demonstrated:
+#   ✓ register (cost estimates, actual costs, deltas per environment)
+#   ✓ if conditional (alert when actual cost exceeds estimate by >10%)
+#   ✓ matrix (model costs across environments: dev/staging/prod)
+#   ✓ on_failure (task-level: preserve cost snapshot on estimation failure)
+#   ✓ retries (API calls to cloud cost services may be transient)
+#   ✓ timeout (cost API calls are bounded)
+#   ✓ ignore_failure (cost reporting must not block deployment)
+#   ✓ env vars (cloud provider credentials, budget thresholds)
+#   ✓ tags (finops, cost, modeling, deployment)
+#
+# Workflow:
+#   1. Snapshot the current (pre-deployment) cost baseline per environment
+#   2. Estimate the post-deployment cost delta from IaC plan output
+#   3. Gate deployment on budget threshold check
+#   4. Deploy (simulated)
+#   5. Measure actual post-deployment cost delta
+#   6. Compare estimate vs actual per environment
+#   7. Alert finance and engineering if variance exceeds threshold
+#   8. Publish FinOps report
+#
+# Try:
+#   wf run cost-modeling --work-stealing --print-output
+#   wf run cost-modeling --parallel --max-parallel 3
+#   wf run cost-modeling --var BUDGET_THRESHOLD=5
+#   wf graph cost-modeling
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "cost-modeling"
+description = "Infrastructure cost modeling: pre-deployment baseline → estimation → threshold gate → deployment → post-deployment delta → variance analysis"
+tags        = ["finops", "cost", "modeling", "deployment"]
+
+# ── Pre-deployment baseline snapshot ─────────────────────────────────────────
+
+[tasks.snapshot-cost-baseline]
+name = "Snapshot Pre-Deployment Cost Baseline"
+cmd  = '''
+echo "=== Pre-Deployment Cost Baseline Snapshot ==="
+echo "Provider   : AWS"
+echo "Account    : 123456789012"
+echo "Snapshot   : $(date -Iseconds)"
+echo ""
+echo "Current monthly spend (last 30-day average):"
+echo "  Compute (EC2, ECS, Lambda)  : \$4,820.00"
+echo "  Storage (S3, EBS, RDS)      : \$1,240.00"
+echo "  Network (data transfer, LB) : \$380.00"
+echo "  Other (monitoring, logging) : \$210.00"
+echo "  ─────────────────────────────────────────"
+echo "  Total                       : \$6,650.00"
+echo ""
+echo "Baseline snapshot saved."
+echo "6650"
+'''
+register = "baseline_monthly_usd"
+timeout  = "5m"
+retries  = 2
+retry_delay = "10s"
+env      = {AWS_REGION = "us-east-1", COST_GRANULARITY = "MONTHLY"}
+
+# ── IaC cost estimation via matrix (per environment) ─────────────────────────
+
+[tasks.estimate-deployment-cost]
+name    = "Estimate Cost Delta — {{.env}} Environment"
+cmd     = '''
+ENV="{{.env}}"
+echo "=== Cost Estimation: ${ENV} ==="
+echo "Parsing Terraform plan output for ${ENV}..."
+echo ""
+case "${ENV}" in
+  dev)
+    echo "Resources to add:"
+    echo "  + aws_instance.app_server (t3.small × 1)    : +\$15/mo"
+    echo "  + aws_db_instance.postgres (db.t3.micro × 1): +\$28/mo"
+    echo "  + aws_s3_bucket.artifacts                   : +\$2/mo"
+    echo "Resources to change:"
+    echo "  ~ aws_lambda.processor (memory: 256→512 MB) : +\$8/mo"
+    echo ""
+    echo "Estimated delta: +\$53/month"
+    echo "+53"
+    ;;
+  staging)
+    echo "Resources to add:"
+    echo "  + aws_instance.app_server (t3.medium × 2)   : +\$120/mo"
+    echo "  + aws_db_instance.postgres (db.t3.small × 1): +\$55/mo"
+    echo "  + aws_elasticache.redis                     : +\$48/mo"
+    echo "Resources to change:"
+    echo "  ~ aws_ecs_service.api (desired: 2→4)        : +\$140/mo"
+    echo ""
+    echo "Estimated delta: +\$363/month"
+    echo "+363"
+    ;;
+  prod)
+    echo "Resources to add:"
+    echo "  + aws_instance.app_server (c5.large × 3)    : +\$450/mo"
+    echo "  + aws_db_instance.postgres (db.r5.large × 2): +\$720/mo"
+    echo "  + aws_cloudfront.cdn                        : +\$85/mo"
+    echo "  + aws_waf_web_acl                           : +\$30/mo"
+    echo "Resources to change:"
+    echo "  ~ aws_ecs_service.api (desired: 4→8)        : +\$380/mo"
+    echo "  ~ aws_alb.main (cross-zone enabled)         : +\$22/mo"
+    echo ""
+    echo "Estimated delta: +\$1,687/month"
+    echo "+1687"
+    ;;
+esac
+'''
+register   = "estimated_delta_{{.env}}"
+depends_on = ["snapshot-cost-baseline"]
+timeout    = "10m"
+ignore_failure = true
+retries    = 2
+retry_delay = "15s"
+env        = {TERRAFORM_DIR = "./infra/{{.env}}", COST_API_ENDPOINT = "https://infracost.io/api/v1"}
+
+[tasks.estimate-deployment-cost.matrix]
+env = ["dev", "staging", "prod"]
+
+# ── Budget threshold gate ─────────────────────────────────────────────────────
+
+[tasks.check-budget-threshold]
+name       = "Evaluate Budget Approval Gate"
+cmd        = '''
+BASELINE={{.baseline_monthly_usd}}
+DEV_DELTA=$(echo "{{.estimated_delta_dev}}" | tr -d '+')
+STG_DELTA=$(echo "{{.estimated_delta_staging}}" | tr -d '+')
+PRD_DELTA=$(echo "{{.estimated_delta_prod}}" | tr -d '+')
+TOTAL_DELTA=$(( DEV_DELTA + STG_DELTA + PRD_DELTA ))
+NEW_TOTAL=$(( BASELINE + TOTAL_DELTA ))
+PCT_INCREASE=$(( (TOTAL_DELTA * 100) / BASELINE ))
+THRESHOLD=${BUDGET_THRESHOLD:-15}
+
+echo "=== Budget Approval Gate ==="
+echo ""
+echo "Baseline          : \$${BASELINE}/mo"
+echo "Estimated delta   :"
+echo "  dev             : +\$${DEV_DELTA}/mo"
+echo "  staging         : +\$${STG_DELTA}/mo"
+echo "  prod            : +\$${PRD_DELTA}/mo"
+echo "  ─────────────────────────────"
+echo "  total           : +\$${TOTAL_DELTA}/mo"
+echo ""
+echo "Projected total   : \$${NEW_TOTAL}/mo"
+echo "% increase        : ${PCT_INCREASE}%"
+echo "Threshold         : ${THRESHOLD}%"
+echo ""
+
+if [ "${PCT_INCREASE}" -le "${THRESHOLD}" ]; then
+  echo "DECISION: APPROVED — within ${THRESHOLD}% budget threshold"
+  echo "approved"
+else
+  echo "DECISION: REQUIRES APPROVAL — ${PCT_INCREASE}% exceeds ${THRESHOLD}% threshold"
+  echo "requires_approval"
+fi
+'''
+register   = "budget_decision"
+depends_on = [
+  "estimate-deployment-cost[env=dev]",
+  "estimate-deployment-cost[env=staging]",
+  "estimate-deployment-cost[env=prod]"
+]
+timeout    = "3m"
+env        = {BUDGET_THRESHOLD = "15"}
+
+# ── Deployment (gated) ────────────────────────────────────────────────────────
+
+[tasks.deploy-infrastructure]
+name       = "Apply Infrastructure Changes (Terraform)"
+cmd        = """
+echo "=== Infrastructure Deployment ==="
+echo "Budget gate      : {{.budget_decision}}"
+echo "Deploying via Terraform apply (--auto-approve)..."
+echo ""
+echo "  dev     : apply complete (4 resources added, 1 changed)"
+echo "  staging : apply complete (5 resources added, 1 changed)"
+echo "  prod    : apply complete (6 resources added, 2 changed)"
+echo ""
+echo "Deployment complete. Waiting 5 minutes for cost metrics to propagate..."
+sleep 5
+echo "Metrics available."
+"""
+if         = 'budget_decision == "approved"'
+depends_on = ["check-budget-threshold"]
+timeout    = "30m"
+on_failure = "preserve-cost-snapshot"
+
+# ── Post-deployment cost measurement via matrix ───────────────────────────────
+
+[tasks.measure-actual-cost]
+name    = "Measure Actual Post-Deployment Cost — {{.env}}"
+cmd     = '''
+ENV="{{.env}}"
+echo "=== Actual Cost Measurement: ${ENV} ==="
+echo "Querying AWS Cost Explorer (24h post-deployment window)..."
+echo ""
+case "${ENV}" in
+  dev)
+    # Slight variance from estimate — resource was cheaper than estimated
+    echo "Actual cost delta measured: +\$49/month"
+    echo "+49"
+    ;;
+  staging)
+    # Close to estimate
+    echo "Actual cost delta measured: +\$371/month"
+    echo "+371"
+    ;;
+  prod)
+    # Data transfer costs higher than modeled
+    echo "Actual cost delta measured: +\$1,842/month"
+    echo "+1842"
+    ;;
+esac
+'''
+register       = "actual_delta_{{.env}}"
+depends_on     = ["deploy-infrastructure"]
+ignore_failure = true
+timeout        = "10m"
+retries        = 3
+retry_delay    = "20s"
+
+[tasks.measure-actual-cost.matrix]
+env = ["dev", "staging", "prod"]
+
+# ── Variance analysis ─────────────────────────────────────────────────────────
+
+[tasks.compute-variance]
+name       = "Compute Estimate vs Actual Variance"
+cmd        = '''
+DEV_EST=$(echo "{{.estimated_delta_dev}}" | tr -d '+')
+STG_EST=$(echo "{{.estimated_delta_staging}}" | tr -d '+')
+PRD_EST=$(echo "{{.estimated_delta_prod}}" | tr -d '+')
+DEV_ACT=$(echo "{{.actual_delta_dev}}" | tr -d '+')
+STG_ACT=$(echo "{{.actual_delta_staging}}" | tr -d '+')
+PRD_ACT=$(echo "{{.actual_delta_prod}}" | tr -d '+')
+
+DEV_VAR=$(( DEV_ACT - DEV_EST ))
+STG_VAR=$(( STG_ACT - STG_EST ))
+PRD_VAR=$(( PRD_ACT - PRD_EST ))
+TOTAL_VAR=$(( DEV_VAR + STG_VAR + PRD_VAR ))
+TOTAL_EST=$(( DEV_EST + STG_EST + PRD_EST ))
+PCT_VAR=$(( (TOTAL_VAR * 100) / TOTAL_EST ))
+
+echo "=== Cost Variance Analysis ==="
+echo ""
+printf "%-12s %-12s %-12s %-12s\n" "Environment" "Estimated" "Actual" "Variance"
+printf "%-12s %-12s %-12s %-12s\n" "───────────" "─────────" "──────" "────────"
+printf "%-12s +\$%-11s +\$%-11s %+\$d\n" "dev"     "${DEV_EST}" "${DEV_ACT}" "${DEV_VAR}"
+printf "%-12s +\$%-11s +\$%-11s %+\$d\n" "staging" "${STG_EST}" "${STG_ACT}" "${STG_VAR}"
+printf "%-12s +\$%-11s +\$%-11s %+\$d\n" "prod"    "${PRD_EST}" "${PRD_ACT}" "${PRD_VAR}"
+printf "%-12s %-12s %-12s %+\$d (%+d%%)\n" "TOTAL" "+\$${TOTAL_EST}" "+\$(( TOTAL_EST + TOTAL_VAR ))" "${TOTAL_VAR}" "${PCT_VAR}"
+echo ""
+
+if [ "${PCT_VAR}" -gt 10 ]; then
+  echo "VARIANCE ALERT: actual exceeded estimate by ${PCT_VAR}%  (threshold: 10%)"
+  echo "over_threshold"
+else
+  echo "Variance within acceptable range (${PCT_VAR}%)"
+  echo "within_threshold"
+fi
+'''
+register   = "variance_status"
+depends_on = [
+  "measure-actual-cost[env=dev]",
+  "measure-actual-cost[env=staging]",
+  "measure-actual-cost[env=prod]"
+]
+timeout    = "5m"
+
+# ── Variance alert (conditional) ─────────────────────────────────────────────
+
+[tasks.alert-cost-variance]
+name       = "Alert Finance and Engineering on Cost Overrun"
+cmd        = """
+echo "=== COST VARIANCE ALERT ==="
+echo ""
+echo "Deployment ID : {{.audit_id}}"
+echo "Variance      : exceeds 10% threshold"
+echo ""
+echo "prod environment was the primary driver."
+echo "Likely cause  : data transfer costs underestimated in IaC model."
+echo ""
+echo "Actions:"
+echo "  1. Engineering: review data transfer assumptions in Terraform model"
+echo "  2. FinOps: update cost model template for network-heavy workloads"
+echo "  3. Finance: approve budget amendment or identify offset"
+echo ""
+echo "Notifications sent to: FinOps team, VP Engineering, CFO dashboard"
+"""
+if         = 'variance_status == "over_threshold"'
+depends_on = ["compute-variance"]
+ignore_failure = true
+timeout    = "3m"
+
+# ── FinOps report ─────────────────────────────────────────────────────────────
+
+[tasks.publish-finops-report]
+name           = "Publish FinOps Report"
+cmd            = '''
+BASELINE={{.baseline_monthly_usd}}
+echo "=== FinOps Deployment Cost Report ==="
+echo ""
+echo "Baseline (pre-deployment)  : \$${BASELINE}/mo"
+echo ""
+echo "Per-environment deltas:"
+echo "  dev     estimated +\$$(echo "{{.estimated_delta_dev}}" | tr -d '+') / actual +\$$(echo "{{.actual_delta_dev}}" | tr -d '+')"
+echo "  staging estimated +\$$(echo "{{.estimated_delta_staging}}" | tr -d '+') / actual +\$$(echo "{{.actual_delta_staging}}" | tr -d '+')"
+echo "  prod    estimated +\$$(echo "{{.estimated_delta_prod}}" | tr -d '+') / actual +\$$(echo "{{.actual_delta_prod}}" | tr -d '+')"
+echo ""
+echo "Budget gate      : {{.budget_decision}}"
+echo "Variance status  : {{.variance_status}}"
+echo ""
+echo "Report published to FinOps dashboard and cost allocation tagging system."
+echo "Ticket created for next sprint: update cost model for network costs."
+'''
+depends_on     = ["alert-cost-variance", "compute-variance"]
+ignore_failure = true
+timeout        = "5m"
+env            = {FINOPS_DASHBOARD_URL = "https://finops.example.com/reports"}
+
+# ── Forensic snapshot on failure ──────────────────────────────────────────────
+
+[tasks.preserve-cost-snapshot]
+type           = "forensic"
+name           = "Preserve Cost Snapshot on Deployment Failure"
+cmd            = '''
+echo "Deployment failed — preserving pre/post cost snapshot for rollback cost analysis."
+echo ""
+echo "Failed task     : {{.failed_task}}"
+echo "Error           : {{.error_message}}"
+echo ""
+echo "Snapshot preserved:"
+echo "  Baseline       : \${{.baseline_monthly_usd}}/mo"
+echo "  Estimates saved for audit trail"
+echo ""
+echo "FinOps on-call notified. Rollback cost analysis will be attached to incident."
+'''
+ignore_failure = true
+timeout        = "3m"

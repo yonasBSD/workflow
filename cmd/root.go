@@ -23,10 +23,7 @@ var rootCmd = &cobra.Command{
 
 A simple yet powerful tool for defining and executing task workflows locally.
 Workflows are defined in TOML format and executed in topological order.`,
-	Version: "0.1.0", // Set this from build flags
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return nil
-	},
+	Version:       "0.2.0",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {

@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	mu   sync.RWMutex
 	l    *slog.Logger
 	once sync.Once
 	logW io.WriteCloser
@@ -57,6 +58,8 @@ func Init(cfg Config) error {
 }
 
 func must() *slog.Logger {
+	mu.RLock()
+	defer mu.RUnlock()
 	if l == nil {
 		panic("logger not initialised. Call logger.Init() first")
 	}
@@ -81,8 +84,12 @@ func With(args ...any) *slog.Logger { return must().With(args...) }
 
 // Reset tears down the logger and allows Init to be called again. Intended for tests.
 func Reset() {
-	Sync()
+	mu.Lock()
+	defer mu.Unlock()
+	if logW != nil {
+		_ = logW.Close()
+		logW = nil
+	}
 	l = nil
-	logW = nil
 	once = sync.Once{}
 }

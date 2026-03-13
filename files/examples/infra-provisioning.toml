@@ -1,0 +1,307 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# infra-provisioning.toml  ·  Cloud Infrastructure Provisioning (Terraform-like)
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Site Reliability Engineering / Platform Engineering
+#
+# Features demonstrated:
+#   ✓ strict dependency chains (must provision in correct order)
+#   ✓ register (resource IDs passed downstream via {{.var}})
+#   ✓ retries + retry_delay (infrastructure APIs are eventually consistent)
+#   ✓ timeout (infra operations can be slow)
+#   ✓ per-task env vars (region, account, credentials)
+#   ✓ --var at runtime (target region, environment)
+#   ✓ task-level on_failure forensic trap (targeted teardown)
+#   ✓ global on_failure forensic trap (full stack teardown)
+#   ✓ if conditional (skip prod-specific steps in dev)
+#   ✓ ignore_failure (optional monitoring setup)
+#   ✓ tags (infrastructure, terraform, production)
+#
+# Try:
+#   wf run infra-provisioning --print-output
+#   wf run infra-provisioning --var REGION=eu-west-1 --var ENV=staging
+#   wf run infra-provisioning --timeout 45m
+#   wf graph infra-provisioning
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "infra-provisioning"
+description = "Provision a full cloud stack: VPC → subnets → security groups → RDS → ECS cluster → ALB → monitoring"
+tags        = ["infrastructure", "terraform", "production", "aws"]
+on_failure  = "teardown-all"
+
+# ── Init ──────────────────────────────────────────────────────────────────────
+
+[tasks.init]
+name = "Terraform Init & Workspace"
+cmd  = """
+ENV="${ENV:-staging}"
+REGION="${REGION:-us-east-1}"
+echo "Terraform init..."
+echo "  Backend: s3://tf-state-bucket/infra/$ENV/$REGION/terraform.tfstate"
+echo "  Workspace: $ENV"
+echo "  Provider: hashicorp/aws ~> 5.0"
+echo "  Modules: vpc@3.19, ecs@5.11, rds@6.3, alb@9.8"
+sleep 1
+echo "Terraform initialised."
+echo "$ENV-$REGION"
+"""
+register = "stack_id"
+
+# ── Network layer (VPC + subnets) ─────────────────────────────────────────────
+
+[tasks.provision-vpc]
+name        = "Provision VPC"
+cmd         = """
+sleep 2
+VPC_ID="vpc-$(date +%s | cut -c5-12)"
+echo "aws_vpc.$VPC_ID: Creating..."
+echo "  CIDR : 10.0.0.0/16"
+echo "  DNS  : enabled"
+echo "  Tags : Env={{.stack_id}}"
+echo "aws_vpc.$VPC_ID: Creation complete (id=\"$VPC_ID\")"
+echo "$VPC_ID"
+"""
+register    = "vpc_id"
+depends_on  = ["init"]
+retries     = 2
+retry_delay = "10s"
+timeout     = "5m"
+env         = {AWS_DEFAULT_REGION = "us-east-1"}
+on_failure  = "teardown-network"
+
+[tasks.provision-subnets]
+name        = "Provision Subnets (public + private, 3 AZs)"
+cmd         = """
+sleep 2
+echo "Creating 6 subnets in VPC {{.vpc_id}}..."
+echo "  subnet-pub-1a  10.0.1.0/24 (us-east-1a) — public"
+echo "  subnet-pub-1b  10.0.2.0/24 (us-east-1b) — public"
+echo "  subnet-pub-1c  10.0.3.0/24 (us-east-1c) — public"
+echo "  subnet-prv-1a  10.0.11.0/24 (us-east-1a) — private"
+echo "  subnet-prv-1b  10.0.12.0/24 (us-east-1b) — private"
+echo "  subnet-prv-1c  10.0.13.0/24 (us-east-1c) — private"
+echo "All subnets created."
+echo "subnet-pub-1a,subnet-pub-1b,subnet-pub-1c"
+"""
+register   = "public_subnets"
+depends_on = ["provision-vpc"]
+retries    = 2
+retry_delay = "10s"
+timeout    = "5m"
+
+[tasks.provision-igw]
+name       = "Provision Internet Gateway + NAT"
+cmd        = """
+sleep 1
+IGW_ID="igw-$(date +%s | cut -c5-12)"
+echo "Created Internet Gateway: $IGW_ID"
+echo "Attached to VPC: {{.vpc_id}}"
+echo "Created NAT Gateways: 1 per AZ (3 total)"
+echo "Route tables: updated for private subnets → NAT"
+"""
+depends_on = ["provision-subnets"]
+timeout    = "5m"
+
+[tasks.provision-security-groups]
+name       = "Provision Security Groups"
+cmd        = """
+sleep 1
+echo "sg-alb     : allow 80, 443 from 0.0.0.0/0"
+echo "sg-ecs     : allow 8080 from sg-alb only"
+echo "sg-rds     : allow 5432 from sg-ecs only"
+echo "sg-bastion : allow 22 from vpn-cidr (10.100.0.0/16)"
+echo "4 security groups created."
+echo "sg-ecs-$(date +%s | cut -c7-12)"
+"""
+register   = "ecs_sg_id"
+depends_on = ["provision-igw"]
+timeout    = "3m"
+
+# ── Data layer ────────────────────────────────────────────────────────────────
+
+[tasks.provision-rds]
+name        = "Provision RDS PostgreSQL (Multi-AZ)"
+cmd         = """
+sleep 4
+RDS_ID="rds-$(date +%s | cut -c5-12)"
+echo "Creating RDS instance: $RDS_ID"
+echo "  Engine       : PostgreSQL 15.4"
+echo "  Instance type: db.r6g.xlarge"
+echo "  Storage      : 500 GB gp3, IOPS=3000"
+echo "  Multi-AZ     : enabled (us-east-1a primary, 1b standby)"
+echo "  Encrypted    : AES-256 (CMK: arn:aws:kms:...)"
+echo "Endpoint: $RDS_ID.cluster.us-east-1.rds.amazonaws.com:5432"
+echo "$RDS_ID.cluster.us-east-1.rds.amazonaws.com"
+"""
+register    = "rds_endpoint"
+depends_on  = ["provision-security-groups"]
+retries     = 3
+retry_delay = "30s"
+timeout     = "20m"
+on_failure  = "teardown-database"
+env         = {DB_MASTER_USER = "postgres", TF_LOG = "INFO"}
+
+[tasks.run-migrations]
+name        = "Run Database Migrations"
+cmd         = """
+sleep 2
+echo "Connecting to {{.rds_endpoint}}..."
+echo "Running migrations:"
+echo "  V001__create_users.sql         ✓"
+echo "  V002__create_orders.sql        ✓"
+echo "  V003__create_products.sql      ✓"
+echo "  V004__create_audit_trail.sql   ✓"
+echo "  V005__add_indexes.sql          ✓"
+echo "5 migrations applied. Schema version: 5"
+"""
+depends_on  = ["provision-rds"]
+retries     = 2
+retry_delay = "15s"
+timeout     = "10m"
+env         = {FLYWAY_URL = "jdbc:postgresql://{{.rds_endpoint}}/appdb"}
+
+# ── Compute layer ─────────────────────────────────────────────────────────────
+
+[tasks.provision-ecs-cluster]
+name       = "Provision ECS Cluster + Capacity Providers"
+cmd        = """
+sleep 2
+CLUSTER_ARN="arn:aws:ecs:us-east-1:123456789:cluster/app-{{.stack_id}}"
+echo "ECS cluster: $CLUSTER_ARN"
+echo "Capacity providers: FARGATE, FARGATE_SPOT"
+echo "Default strategy: 70% FARGATE / 30% FARGATE_SPOT"
+echo "$CLUSTER_ARN"
+"""
+register   = "cluster_arn"
+depends_on = ["provision-security-groups"]
+timeout    = "5m"
+
+[tasks.deploy-services]
+name        = "Deploy ECS Services (3 services)"
+cmd         = """
+sleep 3
+echo "Deploying services to cluster {{.cluster_arn}}:"
+echo "  api-service     : 4 tasks (t=0.5 vCPU / 1 GB) → STABLE"
+echo "  worker-service  : 2 tasks (t=1 vCPU / 2 GB)   → STABLE"
+echo "  scheduler       : 1 task  (t=0.25 vCPU / 512 MB) → STABLE"
+echo "All services reaching STABLE state..."
+echo "success"
+"""
+register   = "services_status"
+depends_on = ["provision-ecs-cluster", "run-migrations"]
+retries    = 2
+retry_delay = "20s"
+timeout    = "15m"
+
+# ── Load balancer ─────────────────────────────────────────────────────────────
+
+[tasks.provision-alb]
+name       = "Provision Application Load Balancer"
+cmd        = """
+sleep 2
+ALB_DNS="app-{{.stack_id}}-$(date +%s | cut -c7-12).us-east-1.elb.amazonaws.com"
+echo "ALB created: $ALB_DNS"
+echo "  Scheme      : internet-facing"
+echo "  Subnets     : {{.public_subnets}}"
+echo "  Certificate : *.example.com (ACM)"
+echo "  Listeners   : HTTPS:443 → api-service, HTTP:80 → redirect 301"
+echo "$ALB_DNS"
+"""
+register   = "alb_dns"
+depends_on = ["deploy-services"]
+timeout    = "5m"
+
+[tasks.health-check]
+name        = "ALB Health Check (wait for all targets healthy)"
+cmd         = """
+echo "Waiting for all ECS tasks to register as healthy targets..."
+sleep 2
+echo "Target group: api-service     — 4/4 healthy"
+echo "Target group: worker-service  — 2/2 healthy"
+echo "ALB DNS: {{.alb_dns}}"
+echo "GET https://{{.alb_dns}}/health → 200 OK"
+echo "passed"
+"""
+register    = "health_status"
+depends_on  = ["provision-alb"]
+retries     = 5
+retry_delay = "20s"
+timeout     = "10m"
+
+# ── Post-provision (conditional on environment) ───────────────────────────────
+
+[tasks.configure-waf]
+name           = "Configure WAF (production only)"
+cmd            = """
+sleep 1
+echo "Attaching AWS WAF Web ACL to ALB..."
+echo "Rules: AWS-AWSManagedRulesCommonRuleSet"
+echo "       AWS-AWSManagedRulesKnownBadInputsRuleSet"
+echo "       Rate limit: 2000 req/5min per IP"
+"""
+if             = 'health_status == "passed"'
+depends_on     = ["health-check"]
+ignore_failure = true
+timeout        = "5m"
+
+[tasks.setup-monitoring]
+name           = "Setup Monitoring & Alerting"
+cmd            = """
+sleep 1
+echo "Creating CloudWatch alarms:"
+echo "  ECS CPUUtilization > 80% → SNS → PagerDuty"
+echo "  RDS FreeStorageSpace < 10 GB → SNS → Slack"
+echo "  ALB 5XX > 1% → SNS → PagerDuty"
+echo "Datadog agent: deployed as ECS sidecar"
+echo "Dashboards: created (infra-{{.stack_id}})"
+"""
+depends_on     = ["health-check"]
+ignore_failure = true
+timeout        = "5m"
+
+[tasks.smoke-test]
+name       = "Smoke Test New Stack"
+cmd        = """
+sleep 1
+echo "Testing {{.alb_dns}}..."
+echo "POST /api/v1/auth/login   → 200 (12ms)"
+echo "GET  /api/v1/products      → 200 (8ms)"
+echo "GET  /api/v1/health        → 200 (3ms)"
+echo "All smoke tests passed ✓"
+"""
+depends_on = ["configure-waf", "setup-monitoring"]
+timeout    = "5m"
+
+# ── Forensic tasks ────────────────────────────────────────────────────────────
+
+[tasks.teardown-network]
+name = "Teardown Network Layer"
+type = "forensic"
+cmd  = """
+echo "⚠️  Network provisioning failed — cleaning up VPC {{.vpc_id}}"
+echo "Deleting: subnets, route tables, IGW, NAT gateways..."
+sleep 1
+echo "Network cleanup complete."
+"""
+
+[tasks.teardown-database]
+name = "Teardown RDS Instance"
+type = "forensic"
+cmd  = """
+echo "⚠️  Database provisioning failed"
+echo "Deleting RDS instance (final snapshot: SKIP for speed)..."
+sleep 1
+echo "RDS teardown initiated (async, ~10 min)."
+"""
+
+[tasks.teardown-all]
+name = "Full Stack Teardown"
+type = "forensic"
+cmd  = """
+echo "🔴 INFRASTRUCTURE PROVISIONING FAILED — FULL TEARDOWN"
+echo "   Stack  : {{.stack_id}}"
+echo "   Error  : {{.error_message}}"
+echo "Running: terraform destroy -auto-approve"
+sleep 2
+echo "All resources queued for deletion."
+echo "Estimated cleanup: 15-20 minutes."
+"""

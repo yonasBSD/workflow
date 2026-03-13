@@ -1,0 +1,251 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# order-processing.toml  ·  E-commerce Order Processing with Saga Rollback
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: E-commerce / Fintech
+#
+# Features demonstrated:
+#   ✓ strict sequential execution (each step must succeed before the next)
+#   ✓ register (order ID, payment ID, inventory reservation ID)
+#   ✓ task-level on_failure forensic traps implementing the Saga rollback pattern
+#   ✓ retries + retry_delay (payment processors are unreliable)
+#   ✓ timeout (never let a payment hang indefinitely)
+#   ✓ ignore_failure (shipping notification delay must not fail the order)
+#   ✓ env vars (payment processor keys, service endpoints)
+#   ✓ if conditional (loyalty points — only for premium members)
+#   ✓ tags (orders, fintech, saas, critical)
+#
+# This workflow implements the distributed Saga pattern:
+#   each step has a compensating transaction (forensic task) that
+#   runs automatically if that step or any downstream step fails.
+#
+# Try:
+#   wf run order-processing --print-output
+#   wf run order-processing --var ORDER_ID=ORD-20250315-8847
+#   wf run order-processing  (then resume if it fails)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "order-processing"
+description = "E-commerce order saga: validate → payment → inventory → fulfillment → notify; with full rollback on failure"
+tags        = ["orders", "fintech", "saas", "critical"]
+
+# ── Step 1: Validate order ─────────────────────────────────────────────────────
+
+[tasks.validate-order]
+name = "Validate Order"
+cmd  = '''
+ORDER="${ORDER_ID:-ORD-$(date +%Y%m%d-%H%M%S)}"
+echo "Validating order: $ORDER"
+echo "  Items          : 3"
+echo "  Subtotal       : \$247.99"
+echo "  Tax            : \$19.84"
+echo "  Shipping       : \$9.99"
+echo "  Total          : \$277.82"
+echo "  Customer ID    : CUST-98472"
+echo "  Fraud score    : 0.07 / 1.00 (SAFE)"
+echo "  Stock status   : all items available"
+echo "Order validation: PASSED"
+echo "$ORDER"
+'''
+register = "order_id"
+
+# ── Step 2: Charge payment ────────────────────────────────────────────────────
+
+[tasks.charge-payment]
+name        = "Charge Payment (Stripe)"
+cmd         = '''
+sleep 2
+PAY_ID="pi_$(date +%s)$(date +%N | cut -c1-6)"
+echo "Processing payment for order {{.order_id}}..."
+echo "  Processor   : Stripe"
+echo "  Method      : Visa **** 4242"
+echo "  Amount      : \$277.82"
+echo "  3DS         : passed (frictionless)"
+echo "  Charge ID   : $PAY_ID"
+echo "  Status      : succeeded"
+echo "$PAY_ID"
+'''
+register    = "payment_id"
+depends_on  = ["validate-order"]
+on_failure  = "refund-payment"
+retries     = 3
+retry_delay = "5s"
+timeout     = "30s"
+env         = {STRIPE_SECRET_KEY = "sk_live_REDACTED", STRIPE_WEBHOOK_SECRET = "whsec_REDACTED"}
+
+# ── Step 3: Reserve inventory ─────────────────────────────────────────────────
+
+[tasks.reserve-inventory]
+name        = "Reserve Inventory"
+cmd         = """
+sleep 1
+RES_ID="RES-$(date +%s | cut -c5-12)"
+echo "Reserving inventory for order {{.order_id}}..."
+echo "  Reservation ID : $RES_ID"
+echo "  Warehouse      : us-east-warehouse-03"
+echo "  Items reserved :"
+echo "    SKU-001 x 2   → Bin A-12-3 (confirmed)"
+echo "    SKU-447 x 1   → Bin C-07-1 (confirmed)"
+echo "  Reserved until : $(date -d '+2 hours' +%H:%M 2>/dev/null || date -v+2H +%H:%M 2>/dev/null || echo '2 hours from now')"
+echo "$RES_ID"
+"""
+register    = "reservation_id"
+depends_on  = ["charge-payment"]
+on_failure  = "release-inventory"
+timeout     = "15s"
+retries     = 2
+retry_delay = "2s"
+env         = {WAREHOUSE_API = "https://wms.internal/api/v2"}
+
+# ── Step 4: Create fulfillment ────────────────────────────────────────────────
+
+[tasks.create-fulfillment]
+name        = "Create Fulfillment Order"
+cmd         = """
+sleep 1
+FULFILLMENT_ID="FUL-$(date +%s | cut -c5-12)"
+echo "Creating fulfillment for order {{.order_id}}..."
+echo "  Fulfillment ID : $FULFILLMENT_ID"
+echo "  3PL provider   : ShipBob"
+echo "  Service level  : 2-day (Prime-equivalent)"
+echo "  Tracking       : PENDING (label generation: ~5 min)"
+echo "$FULFILLMENT_ID"
+"""
+register    = "fulfillment_id"
+depends_on  = ["reserve-inventory"]
+on_failure  = "cancel-fulfillment"
+timeout     = "20s"
+retries     = 2
+retry_delay = "3s"
+env         = {SHIPBOB_API_KEY = "REDACTED"}
+
+# ── Step 5: Generate shipping label ───────────────────────────────────────────
+
+[tasks.generate-shipping-label]
+name       = "Generate Shipping Label"
+cmd        = """
+sleep 1
+TRACKING="1Z999AA1$(date +%s | cut -c4-12)"
+LABEL_URL="https://labels.shipbob.com/{{.fulfillment_id}}.pdf"
+echo "Generating UPS 2-Day shipping label..."
+echo "  Fulfillment : {{.fulfillment_id}}"
+echo "  Tracking    : $TRACKING"
+echo "  Label URL   : $LABEL_URL"
+echo "  Carrier     : UPS"
+echo "  ETA         : $(date -d '+2 days' '+%A, %B %d' 2>/dev/null || echo 'In 2 business days')"
+echo "$TRACKING"
+"""
+register   = "tracking_number"
+depends_on = ["create-fulfillment"]
+timeout    = "30s"
+retries    = 2
+retry_delay = "5s"
+
+# ── Step 6: Award loyalty points (conditional — premium members only) ──────────
+
+[tasks.award-loyalty-points]
+name       = "Award Loyalty Points"
+cmd        = """
+echo "Customer CUST-98472 is a premium member"
+POINTS=$(echo "scale=0; 27782 / 100" | bc 2>/dev/null || echo "277")
+echo "  Awarding $POINTS points"
+echo "  New balance: 4,821 points"
+echo "  Tier: Gold"
+"""
+if         = 'order_id != ""'       # always true when order_id is set — simulates member check
+depends_on = ["generate-shipping-label"]
+ignore_failure = true
+timeout    = "10s"
+
+# ── Step 7: Send notifications ────────────────────────────────────────────────
+
+[tasks.send-confirmation-email]
+name           = "Send Order Confirmation Email"
+cmd            = '''
+sleep 1
+echo "Sending confirmation to customer@example.com..."
+echo "  Template: order-confirmed-v3"
+echo "  Order   : {{.order_id}}"
+echo "  Tracking: {{.tracking_number}}"
+echo "  Payment : {{.payment_id}} (charged \$277.82)"
+echo "Email queued (SendGrid job: $(date +%s))"
+'''
+depends_on     = ["generate-shipping-label", "award-loyalty-points"]
+ignore_failure = true     # email outage must never fail an order
+retries        = 3
+retry_delay    = "10s"
+timeout        = "15s"
+
+[tasks.send-sms]
+name           = "Send SMS Notification"
+cmd            = """
+echo "SMS to +1-555-****-9874: 'Your order {{.order_id}} is confirmed! Track: {{.tracking_number}}'"
+"""
+depends_on     = ["generate-shipping-label"]
+ignore_failure = true
+timeout        = "10s"
+
+[tasks.update-order-status]
+name       = "Update Order Status in OMS"
+cmd        = """
+echo "Setting order {{.order_id}} → CONFIRMED in Order Management System"
+echo "  Payment   : {{.payment_id}}"
+echo "  Warehouse : {{.reservation_id}}"
+echo "  Fulfiller : {{.fulfillment_id}}"
+echo "  Tracking  : {{.tracking_number}}"
+echo "OMS updated."
+"""
+depends_on = ["send-confirmation-email"]
+retries    = 3
+retry_delay = "5s"
+timeout    = "10s"
+
+[tasks.emit-analytics-event]
+name           = "Emit Analytics Event (Segment)"
+cmd            = """
+echo "Emitting: order_completed"
+echo "  order_id    : {{.order_id}}"
+echo "  revenue     : 277.82"
+echo "  payment_id  : {{.payment_id}}"
+echo "  channel     : web"
+"""
+depends_on     = ["update-order-status"]
+ignore_failure = true
+timeout        = "5s"
+
+# ── Saga compensating transactions (forensic tasks) ───────────────────────────
+
+[tasks.refund-payment]
+name = "Saga: Refund Payment"
+type = "forensic"
+cmd  = '''
+echo "⚠️  SAGA ROLLBACK: refunding payment"
+echo "   Payment ID : {{.payment_id}}"
+echo "   Reason     : {{.error_message}}"
+echo "   Amount     : \$277.82"
+sleep 1
+echo "Refund issued. Stripe refund ID: re_$(date +%s)"
+echo "Customer will see credit in 5-10 business days."
+'''
+
+[tasks.release-inventory]
+name = "Saga: Release Inventory Reservation"
+type = "forensic"
+cmd  = """
+echo "⚠️  SAGA ROLLBACK: releasing inventory reservation"
+echo "   Reservation: {{.reservation_id}}"
+echo "   Reason     : {{.error_message}}"
+sleep 1
+echo "Inventory released. Items available again."
+"""
+
+[tasks.cancel-fulfillment]
+name = "Saga: Cancel Fulfillment Order"
+type = "forensic"
+cmd  = """
+echo "⚠️  SAGA ROLLBACK: cancelling fulfillment"
+echo "   Fulfillment: {{.fulfillment_id}}"
+echo "   Reason     : {{.error_message}}"
+sleep 1
+echo "Fulfillment cancelled with ShipBob."
+echo "Triggering refund-payment and release-inventory..."
+"""

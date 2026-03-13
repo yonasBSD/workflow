@@ -1,0 +1,263 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# database-backup.toml  ·  Multi-Database Backup & Verification
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Database Administration / Site Reliability Engineering
+#
+# Features demonstrated:
+#   ✓ matrix expansion — backs up postgres, mysql, redis simultaneously
+#   ✓ register (individual checksums for each backup)
+#   ✓ clean_env (backup tool sees only what it needs)
+#   ✓ ignore_failure (old backup pruning never blocks fresh backups)
+#   ✓ retries + retry_delay (object storage uploads)
+#   ✓ timeout (per-database dump)
+#   ✓ task-level on_failure forensic trap (backup integrity alert)
+#   ✓ global on_failure forensic trap (ops page)
+#   ✓ working_dir
+#   ✓ tags (backup, daily, compliance)
+#
+# Matrix creates 3 parallel nodes:
+#   backup-dump[db=postgres]
+#   backup-dump[db=mysql]
+#   backup-dump[db=redis]
+#
+# Try:
+#   wf run database-backup --parallel --print-output
+#   wf run database-backup --work-stealing
+#   wf graph database-backup   # see matrix expansion
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "database-backup"
+description = "Daily backup for all production databases with integrity verification and off-site upload"
+tags        = ["backup", "daily", "compliance", "ops"]
+on_failure  = "page-dba-team"
+
+# ── Preflight ─────────────────────────────────────────────────────────────────
+
+[tasks.preflight]
+name = "Preflight: Verify Disk Space & Credentials"
+cmd  = """
+mkdir -p /tmp/wf-backup/dumps /tmp/wf-backup/checksums /tmp/wf-backup/logs
+AVAIL=$(df -k /tmp 2>/dev/null | awk 'NR==2{print $4}' || echo 999999)
+echo "Available disk: ${AVAIL}KB"
+echo "Credential store: accessible"
+echo "Backup workspace: /tmp/wf-backup"
+echo "ready"
+"""
+register = "preflight_status"
+
+# ── Parallel dumps (matrix) ───────────────────────────────────────────────────
+
+[tasks.backup-dump]
+name = "Dump Database"
+cmd  = """
+sleep 3
+DB_NAME="$(date +%s)_dump"
+DUMP_FILE="/tmp/wf-backup/dumps/${DB_NAME}.sql.gz"
+echo "Connecting to database..."
+echo "Dump started  : $(date -u +%H:%M:%SZ)"
+echo "Rows estimated: 4,200,000"
+gzip -c /dev/null > "$DUMP_FILE"          # create real file (empty, simulating)
+echo "Dump finished : $(date -u +%H:%M:%SZ)"
+echo "Output file   : $DUMP_FILE"
+echo "Size          : 847 MB (compressed)"
+echo "$DUMP_FILE"
+"""
+depends_on = ["preflight"]
+timeout    = "2h"
+clean_env  = true
+env        = {PGPASSWORD = "REDACTED", MYSQL_PWD = "REDACTED"}
+on_failure = "alert-backup-failure"
+
+[tasks.backup-dump.matrix]
+db = ["postgres", "mysql", "redis"]
+
+# ── Checksum all dumps (needs all three dumps done) ───────────────────────────
+
+[tasks.checksum-postgres]
+name       = "Checksum postgres dump"
+cmd        = """
+sleep 1
+CHKSUM=$(echo "postgres-backup-$(date +%s)" | cksum | awk '{printf "%08x", $1}')
+echo "SHA256: ${CHKSUM}  /tmp/wf-backup/dumps/*_postgres*.sql.gz"
+echo "$CHKSUM"
+"""
+register   = "checksum_postgres"
+depends_on = ["backup-dump[db=postgres]"]
+timeout    = "10m"
+
+[tasks.checksum-mysql]
+name       = "Checksum mysql dump"
+cmd        = """
+sleep 1
+CHKSUM=$(echo "mysql-backup-$(date +%s)" | cksum | awk '{printf "%08x", $1}')
+echo "SHA256: ${CHKSUM}  /tmp/wf-backup/dumps/*_mysql*.sql.gz"
+echo "$CHKSUM"
+"""
+register   = "checksum_mysql"
+depends_on = ["backup-dump[db=mysql]"]
+timeout    = "10m"
+
+[tasks.checksum-redis]
+name       = "Checksum redis dump"
+cmd        = """
+sleep 1
+CHKSUM=$(echo "redis-backup-$(date +%s)" | cksum | awk '{printf "%08x", $1}')
+echo "SHA256: ${CHKSUM}  /tmp/wf-backup/dumps/*_redis*.sql.gz"
+echo "$CHKSUM"
+"""
+register   = "checksum_redis"
+depends_on = ["backup-dump[db=redis]"]
+timeout    = "10m"
+
+# ── Record checksums manifest ─────────────────────────────────────────────────
+
+[tasks.write-manifest]
+name       = "Write Integrity Manifest"
+cmd        = """
+MANIFEST="/tmp/wf-backup/checksums/manifest-$(date +%Y%m%d).txt"
+cat > "$MANIFEST" <<EOF
+# Backup Manifest — $(date -u +%Y-%m-%dT%H:%M:%SZ)
+postgres  {{.checksum_postgres}}
+mysql     {{.checksum_mysql}}
+redis     {{.checksum_redis}}
+EOF
+echo "Manifest written: $MANIFEST"
+cat "$MANIFEST"
+"""
+depends_on = ["checksum-postgres", "checksum-mysql", "checksum-redis"]
+working_dir = "/tmp/wf-backup"
+
+# ── Upload to object storage ───────────────────────────────────────────────────
+
+[tasks.upload-primary]
+name        = "Upload → S3 (us-east-1)"
+cmd         = """
+sleep 3
+echo "Uploading 3 dump files + manifest..."
+echo "s3://backups-prod/$(date +%Y/%m/%d)/postgres.sql.gz   → uploaded"
+echo "s3://backups-prod/$(date +%Y/%m/%d)/mysql.sql.gz      → uploaded"
+echo "s3://backups-prod/$(date +%Y/%m/%d)/redis.rdb.gz      → uploaded"
+echo "s3://backups-prod/$(date +%Y/%m/%d)/manifest.txt      → uploaded"
+echo "success"
+"""
+register    = "primary_upload"
+depends_on  = ["write-manifest"]
+retries     = 3
+retry_delay = "30s"
+timeout     = "30m"
+env         = {AWS_DEFAULT_REGION = "us-east-1", AWS_PROFILE = "backup-role"}
+
+[tasks.upload-replica]
+name        = "Upload → GCS (eu-west)"
+cmd         = """
+sleep 3
+echo "Cross-region replica: uploading to gs://backups-prod-eu/..."
+echo "3 files + manifest uploaded"
+echo "success"
+"""
+register    = "replica_upload"
+depends_on  = ["write-manifest"]
+retries     = 3
+retry_delay = "30s"
+timeout     = "30m"
+env         = {CLOUDSDK_CORE_PROJECT = "analytics-prod"}
+
+# ── Verify uploads ────────────────────────────────────────────────────────────
+
+[tasks.verify-primary]
+name       = "Verify S3 Integrity"
+cmd        = """
+sleep 1
+echo "Fetching etags from S3 and comparing to local checksums..."
+echo "postgres : MATCH"
+echo "mysql    : MATCH"
+echo "redis    : MATCH"
+echo "All checksums verified"
+"""
+depends_on = ["upload-primary"]
+timeout    = "5m"
+
+[tasks.verify-replica]
+name       = "Verify GCS Integrity"
+cmd        = """
+sleep 1
+echo "Fetching md5 hashes from GCS..."
+echo "postgres : MATCH"
+echo "mysql    : MATCH"
+echo "redis    : MATCH"
+echo "All checksums verified"
+"""
+depends_on = ["upload-replica"]
+timeout    = "5m"
+
+# ── Test-restore (sample check) ───────────────────────────────────────────────
+
+[tasks.test-restore]
+name       = "Test-restore Postgres Sample"
+cmd        = """
+sleep 2
+echo "Downloading postgres dump head (50 MB) from S3..."
+echo "Restoring to ephemeral test cluster..."
+echo "Row count check: 4,200,000 ✓"
+echo "Schema check   : 247 tables ✓"
+echo "Restore test   : passed"
+"""
+depends_on = ["verify-primary"]
+timeout    = "15m"
+clean_env  = true
+
+# ── Prune old backups (non-critical) ──────────────────────────────────────────
+
+[tasks.prune-old-backups]
+name           = "Prune Backups Older Than 30 Days"
+cmd            = """
+echo "Scanning s3://backups-prod/ for backups older than 30 days..."
+sleep 1
+echo "Deleted 3 backup sets (saved 12.4 GB)"
+echo "Remaining backup window: 30 days"
+"""
+depends_on     = ["verify-primary", "verify-replica"]
+ignore_failure = true     # pruning failure must never block verification success
+
+# ── Completion report ─────────────────────────────────────────────────────────
+
+[tasks.backup-report]
+name       = "Backup Completion Report"
+cmd        = """
+echo "=================================="
+echo "  BACKUP REPORT — $(date +%Y-%m-%d)"
+echo "=================================="
+echo "  Databases  : postgres, mysql, redis"
+echo "  Primary S3 : {{.primary_upload}}"
+echo "  Replica GCS: {{.replica_upload}}"
+echo "  Checksums  :"
+echo "    postgres : {{.checksum_postgres}}"
+echo "    mysql    : {{.checksum_mysql}}"
+echo "    redis    : {{.checksum_redis}}"
+echo "=================================="
+"""
+depends_on = ["test-restore", "prune-old-backups"]
+
+# ── Forensic tasks ────────────────────────────────────────────────────────────
+
+[tasks.alert-backup-failure]
+name = "Alert: Individual Backup Failed"
+type = "forensic"
+cmd  = """
+echo "⚠️  BACKUP FAILURE DETECTED"
+echo "   Task : {{.failed_task}}"
+echo "   Error: {{.error_message}}"
+echo "   Logging to /tmp/wf-backup/logs/failure.log"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) FAILURE {{.error_message}}" >> /tmp/wf-backup/logs/failure.log 2>/dev/null || true
+"""
+
+[tasks.page-dba-team]
+name = "Page DBA On-Call"
+type = "forensic"
+cmd  = """
+echo "🔴 BACKUP PIPELINE FAILURE"
+echo "   Error: {{.error_message}}"
+echo "   Paging DBA on-call..."
+echo "   Incident created: OPS-$(date +%s | cut -c6-12)"
+echo "   Estimated data-at-risk window: 24h"
+"""

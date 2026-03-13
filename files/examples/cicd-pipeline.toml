@@ -1,0 +1,218 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# cicd-pipeline.toml  ·  CI/CD Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Software Engineering / DevOps
+#
+# Features demonstrated:
+#   ✓ depends_on (multi-level DAG)
+#   ✓ parallel builds (3 platforms)
+#   ✓ register + if (conditional production deploy)
+#   ✓ retries + retry_delay (flaky deployment)
+#   ✓ per-task timeout
+#   ✓ per-task env vars (GOOS, GOARCH etc.)
+#   ✓ ignore_failure (non-blocking notification)
+#   ✓ clean_env (reproducible security scan)
+#   ✓ task-level on_failure forensic traps (rollback per environment)
+#   ✓ global on_failure trap (PagerDuty alert)
+#   ✓ tags (filterable by ci, build, production)
+#
+# Try:
+#   wf run cicd-pipeline --parallel --print-output
+#   wf run cicd-pipeline --work-stealing --max-parallel 6
+#   wf run cicd-pipeline --dry-run
+#   wf graph cicd-pipeline --format dot | dot -Tsvg > pipeline.svg
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "cicd-pipeline"
+description = "Full CI/CD: lint → test → build (3 platforms) → integration → staging → production"
+tags        = ["ci", "build", "production", "devops"]
+on_failure  = "alert-oncall"
+
+# ── Stage 0: Setup ────────────────────────────────────────────────────────────
+
+[tasks.setup]
+name = "Generate Build Metadata"
+cmd  = """
+mkdir -p /tmp/wf-cicd/artifacts /tmp/wf-cicd/reports
+# Simulate a short git commit hash
+HASH=$(date +%s | cut -c5-12)
+echo "Build workspace ready at /tmp/wf-cicd"
+echo "Commit: $HASH  Branch: main  Triggered-by: push"
+echo $HASH
+"""
+register = "commit_hash"
+
+# ── Stage 1: Quality gates (all independent → run in parallel) ────────────────
+
+[tasks.lint]
+name        = "Lint & Format Check"
+cmd         = "sleep 1 && echo passed"
+register    = "lint_result"
+depends_on  = ["setup"]
+timeout     = "2m"
+
+[tasks.unit-tests]
+name        = "Unit Tests"
+cmd         = "sleep 2 && echo passed"
+register    = "test_result"
+depends_on  = ["setup"]
+timeout     = "5m"
+retries     = 2
+retry_delay = "3s"
+
+[tasks.sast-scan]
+name        = "SAST Security Scan"
+cmd         = "sleep 1 && echo clean"
+register    = "sast_result"
+depends_on  = ["setup"]
+timeout     = "3m"
+ignore_failure = true     # non-blocking: findings go to report, not gate
+clean_env   = true        # reproducible: no ambient env vars leak into scanner
+
+# ── Stage 2: Cross-platform builds (all independent → run in parallel) ────────
+
+[tasks.build-linux]
+name       = "Build · linux/amd64"
+cmd        = """
+sleep 2
+echo "binary-linux-{{.commit_hash}}" > /tmp/wf-cicd/artifacts/app-linux-amd64
+echo "artifact: /tmp/wf-cicd/artifacts/app-linux-amd64  size: 12.4 MB"
+"""
+depends_on = ["lint", "unit-tests"]
+timeout    = "10m"
+env        = {GOOS = "linux", GOARCH = "amd64", CGO_ENABLED = "0"}
+
+[tasks.build-macos]
+name       = "Build · darwin/arm64"
+cmd        = """
+sleep 2
+echo "binary-macos-{{.commit_hash}}" > /tmp/wf-cicd/artifacts/app-darwin-arm64
+echo "artifact: /tmp/wf-cicd/artifacts/app-darwin-arm64  size: 13.1 MB"
+"""
+depends_on = ["lint", "unit-tests"]
+timeout    = "10m"
+env        = {GOOS = "darwin", GOARCH = "arm64", CGO_ENABLED = "0"}
+
+[tasks.build-windows]
+name       = "Build · windows/amd64"
+cmd        = """
+sleep 2
+echo "binary-win-{{.commit_hash}}" > /tmp/wf-cicd/artifacts/app-windows-amd64.exe
+echo "artifact: /tmp/wf-cicd/artifacts/app-windows-amd64.exe  size: 13.8 MB"
+"""
+depends_on = ["lint", "unit-tests"]
+timeout    = "10m"
+env        = {GOOS = "windows", GOARCH = "amd64", CGO_ENABLED = "0"}
+
+# ── Stage 3: Integration tests (needs linux build) ────────────────────────────
+
+[tasks.integration-tests]
+name        = "Integration Test Suite"
+cmd         = "sleep 3 && echo passed"
+register    = "integration_result"
+depends_on  = ["build-linux"]
+timeout     = "15m"
+retries     = 1
+retry_delay = "10s"
+
+# ── Stage 4: Sign all artifacts (needs all builds) ────────────────────────────
+
+[tasks.sign-artifacts]
+name       = "Sign & Checksum Artifacts"
+cmd        = """
+sleep 1
+for f in /tmp/wf-cicd/artifacts/*; do
+  echo "SHA256($(basename $f))= $(echo $f | cksum | awk '{print $1}')"
+done
+echo "All artifacts signed with GPG key 0xDEADBEEF"
+"""
+depends_on = ["build-linux", "build-macos", "build-windows"]
+clean_env  = true
+
+# ── Stage 5: Deploy staging (conditional on integration gate) ─────────────────
+
+[tasks.deploy-staging]
+name        = "Deploy → Staging"
+cmd         = """
+sleep 2
+echo "Deploying commit {{.commit_hash}} to staging.example.com"
+echo "Rolling update: 3/3 pods healthy"
+echo "Health check: HTTP 200 /"
+echo "success"
+"""
+register    = "staging_result"
+depends_on  = ["integration-tests", "sign-artifacts", "sast-scan"]
+on_failure  = "rollback-staging"
+env         = {DEPLOY_ENV = "staging", REPLICAS = "3", HEALTH_TIMEOUT = "30"}
+retries     = 3
+retry_delay = "15s"
+timeout     = "8m"
+
+[tasks.smoke-tests]
+name       = "Staging Smoke Tests"
+cmd        = "sleep 1 && echo passed"
+register   = "smoke_result"
+depends_on = ["deploy-staging"]
+timeout    = "3m"
+
+# ── Stage 6: Production (gated on staging success) ────────────────────────────
+
+[tasks.deploy-production]
+name       = "Deploy → Production"
+cmd        = """
+sleep 3
+echo "Rolling update: 10/10 pods healthy"
+echo "Deployed commit {{.commit_hash}} to production"
+echo "Canary: 5% → 25% → 100% traffic shifted"
+echo "success"
+"""
+if         = 'staging_result == "success"'
+depends_on = ["smoke-tests"]
+on_failure = "rollback-production"
+env        = {DEPLOY_ENV = "production", REPLICAS = "10", HEALTH_TIMEOUT = "60"}
+retries    = 1
+timeout    = "15m"
+
+[tasks.notify-success]
+name           = "Slack: Pipeline Success"
+cmd            = """
+echo "✅ Pipeline SUCCESS"
+echo "   Commit : {{.commit_hash}}"
+echo "   Lint   : {{.lint_result}}"
+echo "   Tests  : {{.test_result}}"
+echo "   Deploy : {{.staging_result}}"
+"""
+depends_on     = ["deploy-production"]
+ignore_failure = true   # never block the pipeline on a Slack outage
+
+# ── Forensic tasks (only execute on failure) ──────────────────────────────────
+
+[tasks.rollback-staging]
+name = "Rollback Staging"
+type = "forensic"
+cmd  = """
+echo "⚠️  ROLLBACK: staging"
+sleep 1
+echo "Reverted to previous stable release. Staging is healthy."
+"""
+
+[tasks.rollback-production]
+name = "Emergency Production Rollback"
+type = "forensic"
+cmd  = """
+echo "🚨 EMERGENCY ROLLBACK: production"
+sleep 2
+echo "All pods reverted. Production is stable on previous release."
+"""
+
+[tasks.alert-oncall]
+name = "PagerDuty: Pipeline Failure"
+type = "forensic"
+cmd  = """
+echo "🔴 CI/CD PIPELINE FAILURE"
+echo "   Workflow : {{.failed_dag}}"
+echo "   Error    : {{.error_message}}"
+echo "   Paging on-call engineer via PagerDuty..."
+sleep 1
+echo "   Incident #INC-$(date +%s | cut -c6-12) created"
+"""

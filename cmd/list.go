@@ -11,7 +11,7 @@ import (
 	"github.com/joelfokou/workflow/internal/config"
 	"github.com/joelfokou/workflow/internal/dag"
 	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/run"
+	"github.com/joelfokou/workflow/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,6 @@ import (
 type workflowInfo struct {
 	Name         string `json:"name"`
 	Tasks        int    `json:"tasks"`
-	Valid        bool   `json:"valid"`
 	LastRun      string `json:"last_run,omitempty"`
 	TotalRuns    int    `json:"total_runs,omitempty"`
 	SuccessCount int    `json:"success_count,omitempty"`
@@ -47,7 +46,7 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		entries, err := os.ReadDir(config.Get().Paths.Workflows)
 		if err != nil {
-			logger.Error("list command failed", "error", err)
+			logger.Error("failed to read workflows directory", "error", err)
 			return fmt.Errorf("failed to read workflows directory: %w", err)
 		}
 
@@ -58,16 +57,14 @@ var listCmd = &cobra.Command{
 				info := &workflowInfo{Name: name}
 
 				// Load workflow definition to get task count
-				d, err := dag.Load(name)
+				parser := dag.NewParser(name)
+				def, err := parser.Parse()
 				if err != nil {
-					logger.Warn("failed to load workflow definition", "workflow", name, "error", err)
-					info.Tasks = 0
-					info.Valid = false
-				} else {
-					info.Tasks = len(d.Tasks)
-					info.Valid = true
+					logger.Warn("failed to parse workflow definition", "workflow", name, "error", err)
 				}
-
+				if def != nil {
+					info.Tasks = len(def.Tasks)
+				}
 				// Get recent run statistics if detailed output requested
 				if listDetailed {
 					if stats, err := getRunStats(name); err == nil {
@@ -75,6 +72,9 @@ var listCmd = &cobra.Command{
 						info.TotalRuns = stats.TotalRuns
 						info.SuccessCount = stats.SuccessCount
 						info.FailedCount = stats.FailedCount
+					} else {
+						logger.Warn("failed to get run statistics", "workflow", name, "error", err)
+						fmt.Printf("Warning: Could not retrieve run statistics for workflow '%s': %v\n", name, err)
 					}
 				}
 
@@ -113,15 +113,15 @@ var listCmd = &cobra.Command{
 // getRunStats queries the database for workflow run statistics.
 func getRunStats(workflowName string) (*runStats, error) {
 	dbPath := config.Get().Paths.Database
-	store, err := run.NewStore(dbPath)
+	store, err := storage.New(dbPath)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
 
-	runs, err := store.ListRuns(workflowName, "", 1000, 0)
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: workflowName})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list runs for workflow '%s': %w", workflowName, err)
 	}
 
 	stats := &runStats{
@@ -133,9 +133,9 @@ func getRunStats(workflowName string) (*runStats, error) {
 
 		for _, r := range runs {
 			switch r.Status {
-			case run.StatusSuccess:
+			case storage.RunSuccess:
 				stats.SuccessCount++
-			case run.StatusFailed:
+			case storage.RunFailed:
 				stats.FailedCount++
 			}
 		}
@@ -147,15 +147,11 @@ func getRunStats(workflowName string) (*runStats, error) {
 // printWorkflowsTable displays workflows in simple table format.
 func printWorkflowsTable(workflows []*workflowInfo) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "WORKFLOW\tTASKS\tSTATUS\n")
-	fmt.Fprintf(w, "--------\t-----\t------\n")
+	fmt.Fprintf(w, "WORKFLOW\tTASKS\n")
+	fmt.Fprintf(w, "--------\t-----\n")
 
 	for _, wf := range workflows {
-		status := "✓ valid"
-		if !wf.Valid {
-			status = "✗ invalid"
-		}
-		fmt.Fprintf(w, "%s\t%d\t%s\n", wf.Name, wf.Tasks, status)
+		fmt.Fprintf(w, "%s\t%d\n", wf.Name, wf.Tasks)
 	}
 
 	w.Flush()
@@ -198,6 +194,6 @@ func printWorkflowsJSON(workflows []*workflowInfo) error {
 func init() {
 	rootCmd.AddCommand(listCmd)
 
-	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
+	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
 	listCmd.Flags().BoolVarP(&listDetailed, "detailed", "d", false, "Show detailed statistics including run history")
 }
