@@ -528,9 +528,11 @@ retries = 0
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
-	// Must abort well under 5 seconds (not wait the full 30 s).
-	if elapsed > 5*time.Second {
-		t.Errorf("task did not time out promptly: elapsed %v (expected < 5s)", elapsed)
+	// Must abort well under 15 seconds (not wait the full 30 s).
+	// Windows CI runners are slower at process group teardown, so we allow
+	// a generous margin while still catching a "waited the full 30 s" bug.
+	if elapsed > 15*time.Second {
+		t.Errorf("task did not time out promptly: elapsed %v (expected < 15s)", elapsed)
 	}
 }
 

@@ -4,6 +4,14 @@ All notable changes to `wf` are documented here. This project follows [Semantic 
 
 ---
 
+## Unreleased
+
+### Fixed
+- `gofmt` import ordering after org rename (`parser.go`, `store.go`)
+- `TestTimeoutKillsTask` flaky on Windows CI — relaxed timeout threshold from 5s to 15s
+
+---
+
 ## [0.2.0] — 2026-03-13
 
 Expands `wf` from a basic sequential workflow runner into a full infrastructure automation runtime. The execution engine, storage layer, and DAG model were substantially redesigned. Six new CLI commands, three execution modes, and a formal security model were added. The logger and config subsystems were refactored.
