@@ -1,0 +1,4 @@
+# Force LF line endings on all platforms.
+# Prevents git autocrlf from converting Go source files to CRLF on Windows,
+# which would cause `gofmt -l .` to report every file as needing formatting.
+* text=auto eol=lf

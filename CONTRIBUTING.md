@@ -1,85 +1,155 @@
-# Contributing to workflow
+# Contributing to wf
 
-First off, thank you for considering contributing to `workflow`! It's people like you that make the open-source community such an amazing place to learn, inspire, and create.
-
-`workflow` is an open-source project and would love to receive contributions from the community! There are many ways to contribute, from writing tutorials or examples, reporting bugs, and submitting feature requests, to writing code which can be incorporated into `workflow` itself.
+Thank you for contributing. This guide covers everything needed to go from idea to merged pull request.
 
 
-## 🛠 Development Guide
+---
 
-### Prerequisites
-- **Go**: You need Go installed (v1.21 or later recommended).
-- **Git**: For version control.
+## Development setup
 
-### Setting up the environment
-1. **Fork the repository** on GitHub.
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com/<YOUR-USERNAME>/workflow.git
-   cd workflow
-   ```
-3. **Install dependencies**:
-    ```bash
-    go mod download
-    ```
-4. **Build the binary** to ensure everything is working:
-    ```bash
-    go build -o wf .
-    ./wf --version
-    ```
+**Prerequisites**: Go 1.24+, Git
 
-### Running Tests
-`workflow` takes testing seriously. Before submitting a PR, please ensure all tests pass.
 ```bash
-# Run all tests
-go test ./...
-
-# Run tests with race condition detection
-go test -race ./...
+git clone https://github.com/joelfokou/workflow.git
+cd workflow
+go mod download
+go build -o wf .
+./wf --version
 ```
 
+---
 
-## 🐛 Reporting Bugs
-A good bug report shouldn't leave others needing to chase you up for more information. Please try to be as detailed as possible in your report.
+## Running tests
 
-Please include:
-1. **Version**: Output of `wf --version`.
-2. **OS**: Mac, Linux, or Windows?
-3. **Reproduction Steps**: A minimal TOML file or command sequence that causes the crash/bug.
-4. **Logs**: Output from `wf logs <run-id>` or the error message.
+```bash
+# All tests with race detection — required before opening a PR
+go test -race ./...
 
+# Targeted suites
+go test -race ./tests/security/...      # security invariants
+go test -race ./tests/e2e/...           # end-to-end
+go test -race ./tests/integration/...   # integration
 
-## 💡 Feature Requests
-Feature requests are welcome! But take a moment to find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature.
+# Single test
+go test -run TestName ./path/to/pkg/...
+```
 
-**Note on Scope**: `workflow` aims to be a **local-first** orchestrator. Features involving distributed agents, web servers, or kubernetes operators are currently considered out of scope.
+All tests must pass with `-race` before submission. The security suite (`tests/security/`) is part of the required baseline — changes that weaken a security invariant require a documented justification to be considered.
 
+---
 
-## 📥 Pull Request Process
-1. **Create a branch** for your feature or fix:
-    ```bash
-    git checkout -b feat/amazing-new-feature
-    ```
-    *(It's recommended to use `feat/`, `fix/`, or `docs/` prefixes)*
-2. **Write your code.**
-    - Follow standard Go idioms (Effective Go).
-    - Keep functions small and testable.
-3. **Format and Lint.**
-    - Your code must be formatted with `gofmt`.
-    - Run `go vet ./...` to catch common issues.
-4. **Commit your changes.**
-    - We encourage **Conventional Commits**.
-    - Example: `feat: add retry logic to task executor` or `fix: resolve race condition in database lock`.
-5. **Push and Open a PR.**
-    - Push to your fork: `git push origin feat/amazing-new-feature`.
-    - Open a Pull Request against the `main` branch of `joelfokou/workflow`.
+## Code quality
 
-### Code Review Checklist
-When reviewing your PR, the following will be checked:
-- [ ] Tests for the new functionality (or regression tests for bug fixes).
-- [ ] Updated documentation (if you changed CLI flags or TOML syntax).
-- [ ] Clean git history (please squash intermediate "wip" commits).
+```bash
+gofmt -w .     # format
+go vet ./...   # lint
+go mod tidy    # tidy dependencies
+```
 
+---
 
-## 🤝 Code of Conduct
-This project is committed to providing a friendly, safe and welcoming environment for all. Please be respectful and considerate in your communication.
+## Architecture
+
+The execution pipeline is linear:
+
+```
+CLI (cmd/) → Parser (dag/parser.go) → Builder (dag/builder.go) → Executor → Storage
+```
+
+Key packages and their roles:
+
+| Package | Responsibility |
+|---|---|
+| `cmd/` | Cobra CLI commands; flag parsing; executor selection |
+| `internal/dag/` | TOML → `WorkflowDefinition` → `DAG`; cycle detection; matrix expansion |
+| `internal/executor/` | Task lifecycle; retry loop; forensic traps; sequential / parallel / work-stealing |
+| `internal/storage/` | SQLite persistence; versioned schema migrations; audit trail; snapshots |
+| `internal/contextmap/` | Variable registry; safe `{{.var}}` interpolation; `if` condition evaluation |
+| `internal/security/` | Path traversal; env-key deny-list; working_dir restrictions |
+| `internal/config/` | Viper-based config; `config.Get()` — never a global `config.C` |
+| `internal/logger/` | `log/slog` wrapper; `logger.Init()` must be called before use |
+
+For deeper detail see the [Architecture documentation](docs/architecture/overview.md).
+
+---
+
+## Conventions
+
+**Variable interpolation syntax**: `{{.varname}}` — not `${var}`. The substitution engine is a purpose-built regex, not `text/template`. Template logic is intentionally not supported.
+
+**Configuration access**: always `config.Get()`. There is no package-level `config.C`.
+
+**SQL**: all queries use parameterized statements (`?` placeholders). No string interpolation into SQL.
+
+**File permissions**: log dirs at `0700`, log files and the database at `0600`.
+
+**Run IDs**: KSUID format (sortable, collision-free, URL-safe).
+
+---
+
+## Scope
+
+`wf` is an infrastructure automation runtime for deterministic, auditable, resumable workflow execution. Contributions are welcome across the full surface area — execution engine, storage, security, CLI, documentation, examples, and tests.
+
+There is no hardcoded scope ceiling. If you are planning a significant change, open an issue first to discuss the design before writing code.
+
+---
+
+## Security contributions
+
+Security is a foundational property of `wf`. Contributions adding new features must not weaken existing security invariants. If your change affects any of the following, include or update tests in `tests/security/`:
+
+- Path validation (`internal/security/validate.go`)
+- Variable interpolation (`internal/contextmap/template.go`)
+- Environment variable handling
+- File permission handling
+- SQL query construction
+
+To report a vulnerability privately, see [SECURITY.md](SECURITY.md).
+
+---
+
+## Pull request process
+
+1. **Branch** from `master`:
+   ```bash
+   git checkout -b feat/your-feature
+   # also: fix/, docs/, security/, perf/
+   ```
+
+2. **Write code** following standard Go idioms. Keep functions small and testable.
+
+3. **Format, lint, test:**
+   ```bash
+   gofmt -w . && go vet ./... && go test -race ./...
+   ```
+
+4. **Commit** using [Conventional Commits](https://www.conventionalcommits.org/):
+   ```
+   feat: add cron trigger support
+   fix: resolve race in work-stealing pending counter
+   security: extend env-key deny-list to cover GLIBC_TUNABLES
+   docs: document matrix variable scoping rules
+   ```
+
+5. **Open a PR** against `master`.
+
+### Review checklist
+
+- [ ] `go test -race ./...` passes
+- [ ] `tests/security/...` passes (updated if the change is security-sensitive)
+- [ ] New CLI flags or TOML fields are documented in `docs/`
+- [ ] No new external dependencies without prior discussion
+- [ ] Commit history is clean (squash work-in-progress commits)
+
+---
+
+## Reporting bugs
+
+Include: `wf --version` output, OS and architecture, a minimal TOML file or command sequence that reproduces the issue, and `wf logs <run-id>` output or the error message.
+
+---
+
+## Code of Conduct
+
+Be respectful and constructive. This project is committed to a welcoming environment for all contributors.

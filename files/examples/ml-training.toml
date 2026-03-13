@@ -1,0 +1,247 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ml-training.toml  ·  Machine Learning Model Training Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Data Science / MLOps
+#
+# Features demonstrated:
+#   ✓ depends_on (strict pipeline ordering)
+#   ✓ working_dir (all tasks write to dedicated experiment directory)
+#   ✓ register (best model path, evaluation scores)
+#   ✓ if conditional (only promote model if F1 score is acceptable)
+#   ✓ parallel training of 3 model architectures
+#   ✓ timeout (long-running GPU training)
+#   ✓ ignore_failure (hyperparameter tuning non-blocking)
+#   ✓ env vars (model hyperparameters, seeds)
+#   ✓ global forensic trap (preserve experiment artifacts on crash)
+#   ✓ tags (ml, training, experiment)
+#
+# Architecture:
+#   data-prep → feature-eng → [train 3 models in parallel]
+#               → evaluate each → select-best → [if score ok] → promote → registry
+#
+# Try:
+#   wf run ml-training --work-stealing --max-parallel 4 --print-output
+#   wf run ml-training --parallel --print-output
+#   wf graph ml-training --format json
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "ml-training"
+description = "End-to-end ML training: data prep → feature engineering → parallel model training → evaluation → promotion"
+tags        = ["ml", "training", "experiment", "gpu"]
+on_failure  = "preserve-experiment-artifacts"
+
+# ── Setup experiment directory ────────────────────────────────────────────────
+
+[tasks.create-experiment]
+name = "Create Experiment Directory"
+cmd  = """
+EXP_ID="exp-$(date +%Y%m%d-%H%M%S)"
+mkdir -p /tmp/wf-ml/data /tmp/wf-ml/features /tmp/wf-ml/models /tmp/wf-ml/metrics /tmp/wf-ml/registry
+echo "Experiment ID  : $EXP_ID"
+echo "MLflow run URL : http://mlflow.internal/experiments/$EXP_ID"
+echo "GPU devices    : NVIDIA A100 x4 (simulated)"
+echo "$EXP_ID"
+"""
+register = "exp_id"
+
+# ── Data preparation ──────────────────────────────────────────────────────────
+
+[tasks.download-dataset]
+name       = "Download & Cache Training Dataset"
+cmd        = """
+sleep 2
+echo "Downloading: s3://ml-datasets/churn/v3/train.parquet (2.1 GB)"
+echo "Checksum: OK"
+echo "Records  : 4,200,000 training  ·  420,000 validation"
+echo "Classes  : {churn: 14.3%, retain: 85.7%} (imbalanced)"
+touch /tmp/wf-ml/data/train.parquet
+touch /tmp/wf-ml/data/val.parquet
+"""
+depends_on  = ["create-experiment"]
+timeout     = "30m"
+retries     = 2
+retry_delay = "15s"
+working_dir = "/tmp/wf-ml"
+
+[tasks.data-quality-check]
+name       = "Data Quality Validation"
+cmd        = """
+sleep 1
+echo "Checking for: nulls, duplicates, schema drift, leakage..."
+echo "Null rates      : < 0.1% on all features ✓"
+echo "Duplicates      : 0 found ✓"
+echo "Schema          : matches v3 contract ✓"
+echo "Temporal leakage: none detected ✓"
+echo "passed"
+"""
+register   = "data_quality"
+depends_on = ["download-dataset"]
+timeout    = "10m"
+working_dir = "/tmp/wf-ml"
+
+# ── Feature engineering ───────────────────────────────────────────────────────
+
+[tasks.feature-engineering]
+name       = "Feature Engineering"
+cmd        = """
+sleep 3
+echo "Computing features:"
+echo "  · Recency / Frequency / Monetary (RFM) scores"
+echo "  · 30/60/90-day rolling averages"
+echo "  · Categorical embeddings (256 dim)"
+echo "  · Interaction terms (47 pairs)"
+echo "Feature count: 312 → 847 (after expansion)"
+echo "Output: /tmp/wf-ml/features/train_features.parquet"
+touch /tmp/wf-ml/features/train_features.parquet
+"""
+depends_on  = ["data-quality-check"]
+timeout     = "45m"
+working_dir = "/tmp/wf-ml"
+env         = {POLARS_MAX_THREADS = "8", ARROW_IO_THREADS = "4"}
+
+# ── Parallel model training ───────────────────────────────────────────────────
+
+[tasks.train-xgboost]
+name       = "Train XGBoost"
+cmd        = """
+sleep 4
+echo "XGBoost training — 500 estimators, max_depth=6, eta=0.05"
+echo "Training:   Fold 1/5 ... Fold 2/5 ... Fold 3/5 ... Fold 4/5 ... Fold 5/5"
+echo "Best iter : 387 (early stopping)"
+echo "Val AUC   : 0.8741"
+echo "Val F1    : 0.7923"
+echo "Model saved: /tmp/wf-ml/models/xgboost_{{.exp_id}}.json"
+touch /tmp/wf-ml/models/xgboost_model.json
+"""
+depends_on  = ["feature-engineering"]
+timeout     = "2h"
+working_dir = "/tmp/wf-ml"
+env         = {OMP_NUM_THREADS = "8", XGB_VERBOSITY = "1"}
+
+[tasks.train-lightgbm]
+name       = "Train LightGBM"
+cmd        = """
+sleep 3
+echo "LightGBM training — 1000 leaves, min_data_in_leaf=50, lambda_l1=0.1"
+echo "Training:   Fold 1/5 ... Fold 2/5 ... Fold 3/5 ... Fold 4/5 ... Fold 5/5"
+echo "Best iter : 612"
+echo "Val AUC   : 0.8893"
+echo "Val F1    : 0.8104"
+echo "Model saved: /tmp/wf-ml/models/lightgbm_{{.exp_id}}.txt"
+touch /tmp/wf-ml/models/lightgbm_model.txt
+"""
+depends_on  = ["feature-engineering"]
+timeout     = "2h"
+working_dir = "/tmp/wf-ml"
+env         = {OMP_NUM_THREADS = "8", LIGHTGBM_VERBOSITY = "-1"}
+
+[tasks.train-neural-net]
+name       = "Train Tabular Neural Network"
+cmd        = """
+sleep 5
+echo "TabNet / FT-Transformer — 6 layers, d_model=256, 8 heads"
+echo "Epoch  10/100 | val_loss=0.2841 | val_auc=0.8312"
+echo "Epoch  50/100 | val_loss=0.2213 | val_auc=0.8729"
+echo "Epoch 100/100 | val_loss=0.2091 | val_auc=0.8834"
+echo "Val AUC   : 0.8834"
+echo "Val F1    : 0.8012"
+echo "Model saved: /tmp/wf-ml/models/tabnet_{{.exp_id}}.pt"
+touch /tmp/wf-ml/models/tabnet_model.pt
+"""
+depends_on  = ["feature-engineering"]
+timeout     = "4h"
+working_dir = "/tmp/wf-ml"
+env         = {CUDA_VISIBLE_DEVICES = "0,1", PYTORCH_CUDA_ALLOC_CONF = "max_split_size_mb:512"}
+
+# ── Optional: hyperparameter tuning (non-blocking) ────────────────────────────
+
+[tasks.optuna-sweep]
+name           = "Hyperparameter Sweep (Optuna, 50 trials)"
+cmd            = """
+sleep 3
+echo "Running Optuna TPE sampler, 50 trials, 4 parallel workers..."
+echo "Best trial #37: F1=0.8241, AUC=0.9012"
+echo "Best params: n_estimators=743, max_depth=8, learning_rate=0.031"
+"""
+depends_on     = ["train-xgboost"]
+ignore_failure = true
+timeout        = "1h"
+working_dir    = "/tmp/wf-ml"
+
+# ── Evaluation & comparison ───────────────────────────────────────────────────
+
+[tasks.evaluate-models]
+name       = "Evaluate All Models on Test Set"
+cmd        = """
+sleep 2
+echo "Evaluation on held-out test set (420,000 records):"
+echo ""
+echo "  Model          AUC     F1     Precision Recall"
+echo "  ─────────────────────────────────────────────"
+echo "  XGBoost       0.8741  0.7923  0.8102    0.7756"
+echo "  LightGBM      0.8893  0.8104  0.8341    0.7880"
+echo "  TabNet        0.8834  0.8012  0.8219    0.7812"
+echo ""
+echo "Winner: LightGBM (highest F1)"
+echo "0.8104"
+"""
+register   = "best_f1"
+depends_on = ["train-xgboost", "train-lightgbm", "train-neural-net", "optuna-sweep"]
+timeout    = "30m"
+working_dir = "/tmp/wf-ml"
+
+[tasks.select-champion]
+name       = "Select Champion Model"
+cmd        = """
+echo "Champion: LightGBM"
+echo "  · Best F1    : {{.best_f1}}"
+echo "  · Artifact   : /tmp/wf-ml/models/lightgbm_model.txt"
+echo "  · Experiment : {{.exp_id}}"
+echo "/tmp/wf-ml/models/lightgbm_model.txt"
+"""
+register   = "champion_path"
+depends_on = ["evaluate-models"]
+
+# ── Promote to registry (conditional on quality gate) ─────────────────────────
+
+[tasks.promote-to-staging]
+name       = "Promote Champion → Staging Registry"
+cmd        = """
+sleep 2
+echo "Registering model to MLflow Registry..."
+echo "  Name   : churn-predictor"
+echo "  Version: v$(date +%Y%m%d)"
+echo "  Stage  : Staging"
+echo "  URI    : mlflow://churn-predictor/staging"
+echo "  F1     : {{.best_f1}}"
+echo "success"
+"""
+if         = 'best_f1 != "skipped"'    # promote as long as evaluation didn't skip
+depends_on = ["select-champion"]
+env        = {MLFLOW_TRACKING_URI = "http://mlflow.internal:5000"}
+timeout    = "10m"
+
+[tasks.ab-test-setup]
+name       = "Configure A/B Test (10% traffic to new model)"
+cmd        = """
+sleep 1
+echo "Updating feature flag: churn_model_v_next → 10% rollout"
+echo "Monitoring: Datadog dashboard #ml-churn-predictor"
+echo "Rollback criterion: F1 drops > 2% in 24h window"
+"""
+depends_on = ["promote-to-staging"]
+env        = {LAUNCHDARKLY_SDK_KEY = "sdk-REDACTED"}
+
+# ── Forensic task ─────────────────────────────────────────────────────────────
+
+[tasks.preserve-experiment-artifacts]
+name = "Preserve Experiment Artifacts on Crash"
+type = "forensic"
+cmd  = """
+echo "🔴 ML PIPELINE CRASH — preserving artifacts"
+echo "   Experiment : {{.exp_id}}"
+echo "   Error      : {{.error_message}}"
+echo "Compressing /tmp/wf-ml/ → /tmp/crash-{{.exp_id}}.tar.gz"
+tar -czf "/tmp/crash-$(date +%s).tar.gz" /tmp/wf-ml/ 2>/dev/null || true
+echo "Artifacts preserved for post-mortem analysis"
+"""

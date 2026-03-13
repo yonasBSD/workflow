@@ -1,0 +1,267 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# security-audit.toml  ·  Automated Security Audit
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Security / Compliance
+#
+# Features demonstrated:
+#   ✓ parallel security scans (network, container, code, secrets, deps)
+#   ✓ clean_env (scanners start with no ambient credentials)
+#   ✓ register (individual finding counts from each scanner)
+#   ✓ if conditional (trigger penetration test only when vuln count is low)
+#   ✓ timeout (scanners can hang — must be bounded)
+#   ✓ ignore_failure (individual scanners must not abort overall audit)
+#   ✓ env vars (scanner configuration, severity thresholds)
+#   ✓ tags (security, audit, compliance, quarterly)
+#
+# All scans run in parallel, then merge into a report.
+# The penetration test is gated on a clean vulnerability scan.
+#
+# Try:
+#   wf run security-audit --parallel --print-output --clean-env
+#   wf run security-audit --work-stealing --max-parallel 5
+#   wf graph security-audit
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "security-audit"
+description = "Automated security audit: parallel scans (SAST/DAST/SCA/secrets/network) → risk scoring → report → conditional pentest"
+tags        = ["security", "audit", "compliance", "quarterly"]
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+[tasks.audit-init]
+name = "Initialise Audit Session"
+cmd  = """
+AUDIT_ID="audit-$(date +%Y%m%d-%H%M%S)"
+mkdir -p /tmp/wf-audit/reports /tmp/wf-audit/evidence /tmp/wf-audit/findings
+echo "Audit ID    : $AUDIT_ID"
+echo "Scope       : api.example.com, worker.example.com"
+echo "Standards   : SOC 2 Type II, ISO 27001, OWASP Top 10"
+echo "Scanners    : Trivy, Semgrep, Gitleaks, Nmap, OWASP ZAP"
+echo "$AUDIT_ID"
+"""
+register = "audit_id"
+
+# ── Parallel scans ────────────────────────────────────────────────────────────
+
+[tasks.sast-semgrep]
+name           = "SAST — Semgrep (source code analysis)"
+cmd            = """
+sleep 3
+echo "Scanning 2,847 source files..."
+echo "Rules applied: p/owasp-top-ten, p/python, p/javascript, p/secrets"
+echo ""
+echo "FINDINGS:"
+echo "  HIGH   : 2  (SQL injection, path traversal)"
+echo "  MEDIUM : 8  (XSS, insecure config)"
+echo "  LOW    : 23 (deprecated APIs, weak crypto)"
+echo "  INFO   : 41 (code quality)"
+echo ""
+echo "2"
+"""
+register       = "sast_high"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "20m"
+clean_env      = true
+env            = {SEMGREP_APP_TOKEN = "REDACTED", SEMGREP_JOBS = "4"}
+
+[tasks.sca-trivy]
+name           = "SCA — Trivy (container + dependency vulnerabilities)"
+cmd            = """
+sleep 3
+echo "Scanning images: api:latest, worker:latest"
+echo "Dependency manifest: requirements.txt, package.json, go.sum"
+echo ""
+echo "FINDINGS:"
+echo "  CRITICAL : 0"
+echo "  HIGH     : 3  (CVE-2024-1234, CVE-2024-5678, CVE-2023-9012)"
+echo "  MEDIUM   : 12"
+echo "  LOW      : 31"
+echo ""
+echo "3"
+"""
+register       = "sca_high"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "15m"
+clean_env      = true
+env            = {TRIVY_FORMAT = "json", TRIVY_SEVERITY = "HIGH,CRITICAL"}
+
+[tasks.secret-scan]
+name           = "Secret Scan — Gitleaks (credential leakage)"
+cmd            = """
+sleep 2
+echo "Scanning git history (last 90 days, 1,247 commits)..."
+echo ""
+echo "FINDINGS:"
+echo "  Leaked secrets: 1"
+echo "    - AWS key pattern in commit a3b4c5d (rotated, no longer valid)"
+echo "  Entropy-high strings: 4 (reviewed, false positives)"
+echo ""
+echo "1"
+"""
+register       = "secrets_found"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "10m"
+clean_env      = true
+
+[tasks.network-scan]
+name           = "Network Scan — Nmap (exposed ports & services)"
+cmd            = """
+sleep 4
+echo "Target: api.example.com (93.184.216.34)"
+echo "Scanning 65535 ports (TCP SYN)..."
+echo ""
+echo "OPEN PORTS:"
+echo "  22/tcp  ssh    OpenSSH 8.9 (no issues)"
+echo "  80/tcp  http   redirects to HTTPS"
+echo "  443/tcp https  TLS 1.3 only (A+ Qualys rating)"
+echo ""
+echo "Unexpected services: 0"
+echo "Deprecated protocols (SSLv2/v3, TLS 1.0/1.1): none"
+echo "0"
+"""
+register       = "unexpected_ports"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "15m"
+clean_env      = true
+env            = {NMAP_TIMING = "4"}
+
+[tasks.dast-zap]
+name           = "DAST — OWASP ZAP (dynamic application scan)"
+cmd            = """
+sleep 5
+echo "Starting ZAP spider on https://api.example.com..."
+echo "Crawled 847 URLs"
+echo "Active scan completed"
+echo ""
+echo "FINDINGS:"
+echo "  HIGH   : 1  (Stored XSS in /api/v1/comments)"
+echo "  MEDIUM : 6"
+echo "  LOW    : 19"
+echo ""
+echo "1"
+"""
+register       = "dast_high"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "30m"
+clean_env      = true
+env            = {ZAP_TARGET = "https://api.example.com", ZAP_AJAXSPIDER = "true"}
+
+[tasks.config-audit]
+name           = "Cloud Config Audit — AWS Config + CIS Benchmark"
+cmd            = """
+sleep 2
+echo "Checking AWS Config rules (CIS AWS Foundations Benchmark v2.0):"
+echo "  ✓ MFA enabled on root account"
+echo "  ✓ CloudTrail enabled in all regions"
+echo "  ✗ S3 bucket public access not blocked on 2 non-prod buckets"
+echo "  ✓ Password policy meets requirements"
+echo "  ✓ VPC flow logs enabled"
+echo ""
+echo "Compliant: 48/50 controls"
+echo "Gaps: 2 (medium severity)"
+echo "2"
+"""
+register       = "config_gaps"
+depends_on     = ["audit-init"]
+ignore_failure = true
+timeout        = "10m"
+clean_env      = true
+
+# ── Risk scoring ──────────────────────────────────────────────────────────────
+
+[tasks.compute-risk-score]
+name       = "Compute Composite Risk Score"
+cmd        = """
+sleep 1
+SAST_H=${SAST_HIGH:-2}
+SCA_H=${SCA_HIGH:-3}
+DAST_H=${DAST_HIGH:-1}
+echo "Risk Scoring (CVSS-weighted):"
+echo "  SAST high findings    : {{.sast_high}}"
+echo "  SCA high vulns        : {{.sca_high}}"
+echo "  DAST high findings    : {{.dast_high}}"
+echo "  Leaked secrets        : {{.secrets_found}}"
+echo "  Unexpected open ports : {{.unexpected_ports}}"
+echo "  Config gaps           : {{.config_gaps}}"
+echo ""
+echo "Composite Risk Score: MEDIUM (52/100)"
+echo "Risk trend vs last quarter: ↓ 12 points (improving)"
+echo "medium"
+"""
+register   = "risk_level"
+depends_on = ["sast-semgrep", "sca-trivy", "secret-scan", "network-scan", "dast-zap", "config-audit"]
+timeout    = "5m"
+
+# ── Generate report ───────────────────────────────────────────────────────────
+
+[tasks.generate-report]
+name       = "Generate Audit Report"
+cmd        = """
+sleep 2
+REPORT="/tmp/wf-audit/reports/security-audit-$(date +%Y%m%d).html"
+echo "Compiling findings into report: $REPORT"
+echo "Sections: Executive Summary, Findings by Severity, Remediation Roadmap"
+echo "Report format: HTML + PDF"
+echo "Stakeholders: CISO, Engineering Leads, Compliance Officer"
+cat > "$REPORT" <<'EOF'
+<html><body>
+<h1>Security Audit Report</h1>
+<p>Generated: TIMESTAMP</p>
+</body></html>
+EOF
+echo "Report generated: $REPORT"
+"""
+depends_on = ["compute-risk-score"]
+working_dir = "/tmp/wf-audit"
+
+# ── Conditional penetration test (only when risk is manageable) ───────────────
+
+[tasks.schedule-pentest]
+name       = "Schedule External Penetration Test"
+cmd        = """
+echo "Risk level acceptable for live pentest: {{.risk_level}}"
+echo "Scheduling Cobalt.io pentest for next sprint..."
+echo "Scope document: /tmp/wf-audit/evidence/pentest-scope.pdf"
+echo "Estimated duration: 5 days"
+"""
+if         = 'risk_level == "medium"'
+depends_on = ["generate-report"]
+timeout    = "3m"
+
+[tasks.upload-evidence]
+name           = "Upload Evidence to Compliance Portal"
+cmd            = """
+sleep 1
+echo "Uploading to Vanta / Drata compliance portal..."
+echo "  Audit ID     : {{.audit_id}}"
+echo "  Report       : uploaded"
+echo "  Evidence pack: 47 artifacts uploaded"
+echo "SOC 2 control mapping: 94% coverage"
+"""
+depends_on     = ["generate-report"]
+ignore_failure = true
+retries        = 2
+retry_delay    = "15s"
+timeout        = "5m"
+
+[tasks.notify-findings]
+name           = "Notify Security Team & Leadership"
+cmd            = """
+echo "📋 SECURITY AUDIT COMPLETE — {{.audit_id}}"
+echo ""
+echo "Risk Level : {{.risk_level}}"
+echo "Findings   :"
+echo "  SAST high : {{.sast_high}}"
+echo "  SCA high  : {{.sca_high}}"
+echo "  DAST high : {{.dast_high}}"
+echo "  Secrets   : {{.secrets_found}}"
+echo ""
+echo "Notifications sent to CISO, Eng Leads, and Compliance team."
+"""
+depends_on     = ["schedule-pentest", "upload-evidence"]
+ignore_failure = true

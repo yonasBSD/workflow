@@ -18,8 +18,9 @@ type Paths struct {
 }
 
 type Config struct {
-	LogLevel string `mapstructure:"log_level"`
-	Paths    Paths  `mapstructure:"paths"`
+	LogLevel      string `mapstructure:"log_level"`
+	Paths         Paths  `mapstructure:"paths"`
+	OnFailureHook string `mapstructure:"on_failure_hook"`
 }
 
 var instance Config
@@ -56,6 +57,9 @@ paths:
   logs_file: %s
 
 log_level: info
+
+# on_failure_hook: ""   # Shell command to run after any workflow run fails.
+#                       # Env: WF_RUN_ID, WF_WORKFLOW, WF_FAILED_TASK, WF_STATUS
 `, filepath.Join(getDefaultDataDir(), "workflows"),
 		filepath.Join(getDefaultDataDir(), "logs"),
 		filepath.Join(getDefaultDataDir(), "workflow.db"),
@@ -78,6 +82,7 @@ func Load(configFilePath ...string) (*Config, error) {
 	viper.SetDefault("paths.logs", filepath.Join(dataDir, "logs"))
 	viper.SetDefault("paths.database", filepath.Join(dataDir, "workflow.db"))
 	viper.SetDefault("paths.logs_file", filepath.Join(dataDir, "logs", "workflow.log"))
+	viper.SetDefault("on_failure_hook", "")
 
 	// Environment variables
 	viper.SetEnvPrefix("WF")

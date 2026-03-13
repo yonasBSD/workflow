@@ -1,0 +1,69 @@
+# .golangci.yml — golangci-lint v1.x configuration for the wf project.
+#
+# Philosophy: catch real bugs and anti-patterns; avoid style noise.
+# Every enabled linter must add signal that warrants a CI failure.
+
+linters:
+  disable-all: true
+  enable:
+    # ── Correctness ───────────────────────────────────────────────────────────
+    - errcheck        # unhandled errors (the #1 source of silent failures)
+    - gosimple        # simplify constructs (e.g. select with single case)
+    - ineffassign     # assignments whose result is never used
+    - staticcheck     # megacheck: bugs, deprecated API, incorrect format verbs
+    - bodyclose       # HTTP response bodies that are never closed
+
+    # ── Security ─────────────────────────────────────────────────────────────
+    - gosec           # common security issues (G1xx path traversal, G2xx crypto, …)
+
+    # ── Quality ───────────────────────────────────────────────────────────────
+    - gocritic        # opinionated but practical code improvements
+    - noctx           # HTTP requests without context (hard to cancel/timeout)
+    - unconvert       # unnecessary type conversions
+    - unparam         # function parameters that always receive the same value
+
+linters-settings:
+  errcheck:
+    # Allow ignoring errors on Close() calls — these are idiomatic Go.
+    exclude-functions:
+      - (io.Closer).Close
+      - (*os.File).Close
+
+  gosec:
+    excludes:
+      # G304: file inclusion — we do intentional user-driven file reads
+      - G304
+      # G306: file permissions — we explicitly set 0600/0700 where it matters
+      - G306
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - commentedOutCode   # false positives on TOML/SQL block comments
+      - hugeParam          # dag.DAG is intentionally passed by pointer already
+
+  staticcheck:
+    checks:
+      - "all"
+      - "-ST1000"  # package comment — not required for all packages
+      - "-ST1020"  # exported method comment — not every helper needs one
+
+issues:
+  exclude-dirs:
+    - vendor
+    - testdata
+
+  exclude-rules:
+    - linters: [errcheck]
+      text: "UpdateRun"
+
+    - path: "_test\\.go"
+      linters: [gocritic, unparam]
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m

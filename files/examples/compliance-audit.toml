@@ -1,0 +1,349 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# compliance-audit.toml  ·  Regulatory Compliance Verification
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Finance / Healthcare / Government
+#
+# Features demonstrated:
+#   ✓ register (control pass/fail counts, evidence paths, audit IDs)
+#   ✓ if conditional (gate report sign-off on minimum control coverage)
+#   ✓ matrix (run control checks across multiple frameworks: SOC2/ISO27001/HIPAA)
+#   ✓ on_failure (workflow-level: escalate if audit cannot complete)
+#   ✓ timeout (evidence collection tasks are bounded)
+#   ✓ ignore_failure (individual control gaps must not abort the full audit)
+#   ✓ working_dir (evidence stored in a controlled directory)
+#   ✓ env vars (framework config, thresholds, portal endpoints)
+#   ✓ tags (compliance, audit, evidence, annual)
+#
+# Workflow:
+#   1. Initialise audit session and working directory
+#   2. Verify controls in parallel across three domains (access, data, ops)
+#   3. Collect evidence artefacts
+#   4. Map controls to each framework via matrix expansion
+#   5. Compute coverage score per framework
+#   6. Gate final report generation on ≥ 90 % coverage
+#   7. Submit evidence packages to compliance portals
+#   8. Escalate via forensic task if audit fails to complete
+#
+# Try:
+#   wf run compliance-audit --work-stealing --print-output
+#   wf run compliance-audit --parallel --max-parallel 4
+#   wf graph compliance-audit
+#   wf audit <run-id>
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "compliance-audit"
+description = "Annual regulatory compliance audit: control verification → evidence collection → framework mapping → report sign-off"
+tags        = ["compliance", "audit", "evidence", "annual"]
+on_failure  = "escalate-incomplete-audit"
+
+# ── Session initialisation ────────────────────────────────────────────────────
+
+[tasks.init-audit-session]
+name = "Initialise Audit Session"
+cmd  = """
+AUDIT_ID="COMP-$(date +%Y%m%d)-$(head -c4 /dev/urandom | xxd -p)"
+EVIDENCE_DIR="/tmp/wf-compliance/evidence-${AUDIT_ID}"
+mkdir -p "${EVIDENCE_DIR}/access" "${EVIDENCE_DIR}/data" "${EVIDENCE_DIR}/ops" "${EVIDENCE_DIR}/reports"
+echo "Audit session initialised"
+echo "  ID         : ${AUDIT_ID}"
+echo "  Evidence   : ${EVIDENCE_DIR}"
+echo "  Frameworks : SOC 2 Type II, ISO 27001:2022, HIPAA Security Rule"
+echo "  Period     : $(date -d '1 year ago' +%Y-%m-%d) to $(date +%Y-%m-%d)"
+echo "${AUDIT_ID}"
+"""
+register = "audit_id"
+timeout  = "2m"
+
+# ── Control verification — three domains in parallel ─────────────────────────
+
+[tasks.verify-access-controls]
+name           = "Verify Access Controls (AC)"
+cmd            = """
+EVIDENCE="/tmp/wf-compliance/evidence-{{.audit_id}}/access"
+echo "=== Access Control Verification ==="
+echo ""
+echo "AC-1  MFA enforcement — all admin accounts ............. PASS"
+echo "AC-2  Least-privilege review — all IAM policies ......... PASS"
+echo "AC-3  Privileged access review — quarterly rotation ...... PASS"
+echo "AC-4  Separation of duties — production access ........... PASS"
+echo "AC-5  Account termination procedure — HR sync ............. PASS"
+echo "AC-6  Remote access security — VPN + certificate auth ..... PASS"
+echo "AC-7  Guest/contractor access audit — 30-day expiry ....... PASS"
+echo "AC-8  Access logging — CloudTrail + SIEM coverage ......... PASS"
+echo "AC-9  Shared credentials policy — none found .............. PASS"
+echo "AC-10 Password policy compliance .......................... PASS"
+echo ""
+echo "PASS=10 FAIL=0 EXCEPTIONS=0"
+echo ""
+# Collect evidence
+echo "IAM policy export: saved" > "${EVIDENCE}/iam-policies.txt"
+echo "MFA compliance report: saved" > "${EVIDENCE}/mfa-report.txt"
+echo "Access review sign-off: saved" > "${EVIDENCE}/access-review.pdf"
+echo "10"
+"""
+register       = "ac_pass"
+depends_on     = ["init-audit-session"]
+ignore_failure = true
+timeout        = "15m"
+working_dir    = "/tmp"
+env            = {AUDIT_FRAMEWORK = "SOC2", CHECK_DEPTH = "full"}
+
+[tasks.verify-data-controls]
+name           = "Verify Data Protection Controls (DC)"
+cmd            = """
+EVIDENCE="/tmp/wf-compliance/evidence-{{.audit_id}}/data"
+echo "=== Data Protection Verification ==="
+echo ""
+echo "DC-1  Data classification policy ......................... PASS"
+echo "DC-2  Encryption at rest — all PII datastores ............. PASS"
+echo "DC-3  Encryption in transit — TLS 1.2+ enforced ........... PASS"
+echo "DC-4  Data retention and deletion policy .................. PASS"
+echo "DC-5  Backup and recovery — weekly test results ........... PASS"
+echo "DC-6  Data loss prevention (DLP) rules active ............. PASS"
+echo "DC-7  Database access logging — enabled ................... PASS"
+echo "DC-8  PHI/PII inventory up to date ........................ PASS"
+echo "DC-9  Third-party data sharing agreements ................. FAIL  ← BAA not renewed for Vendor X"
+echo "DC-10 Cross-border data transfer compliance ............... PASS"
+echo ""
+echo "PASS=9 FAIL=1 EXCEPTIONS=1"
+echo ""
+echo "9"
+"""
+register       = "dc_pass"
+depends_on     = ["init-audit-session"]
+ignore_failure = true
+timeout        = "15m"
+working_dir    = "/tmp"
+env            = {AUDIT_FRAMEWORK = "HIPAA", CHECK_DEPTH = "full"}
+
+[tasks.verify-operational-controls]
+name           = "Verify Operational Controls (OC)"
+cmd            = """
+EVIDENCE="/tmp/wf-compliance/evidence-{{.audit_id}}/ops"
+echo "=== Operational Controls Verification ==="
+echo ""
+echo "OC-1  Change management process .......................... PASS"
+echo "OC-2  Incident response plan — tested Q3 .................. PASS"
+echo "OC-3  Vulnerability management — patching SLA met ......... PASS"
+echo "OC-4  Business continuity plan ............................ PASS"
+echo "OC-5  Vendor risk assessments — all critical vendors ....... PASS"
+echo "OC-6  Security awareness training — 98% completion ......... PASS"
+echo "OC-7  Penetration test — annual, last: $(date -d '6 months ago' +%Y-%m-%d) ....... PASS"
+echo "OC-8  Log retention — 13 months confirmed ................. PASS"
+echo "OC-9  Config management — IaC drift detection ............. PASS"
+echo "OC-10 DR drill — RTO/RPO targets met ...................... PASS"
+echo ""
+echo "PASS=10 FAIL=0 EXCEPTIONS=0"
+echo ""
+echo "10"
+"""
+register       = "oc_pass"
+depends_on     = ["init-audit-session"]
+ignore_failure = true
+timeout        = "15m"
+working_dir    = "/tmp"
+env            = {AUDIT_FRAMEWORK = "ISO27001", CHECK_DEPTH = "full"}
+
+# ── Evidence collection ───────────────────────────────────────────────────────
+
+[tasks.collect-evidence]
+name       = "Collect and Package Evidence Artefacts"
+cmd        = """
+EVIDENCE="/tmp/wf-compliance/evidence-{{.audit_id}}"
+echo "Collecting evidence artefacts..."
+echo ""
+echo "  Access controls  : {{.ac_pass}}/10 passed"
+echo "  Data controls    : {{.dc_pass}}/10 passed"
+echo "  Ops controls     : {{.oc_pass}}/10 passed"
+echo ""
+TOTAL_PASS=$(( {{.ac_pass}} + {{.dc_pass}} + {{.oc_pass}} ))
+echo "Total controls passed : ${TOTAL_PASS}/30"
+echo ""
+# Create evidence manifest
+cat > "${EVIDENCE}/manifest.json" <<MANIFEST
+{
+  "audit_id": "{{.audit_id}}",
+  "timestamp": "$(date -Iseconds)",
+  "controls": {
+    "access": {{.ac_pass}},
+    "data":   {{.dc_pass}},
+    "ops":    {{.oc_pass}},
+    "total":  ${TOTAL_PASS}
+  }
+}
+MANIFEST
+echo "Evidence manifest written"
+echo "${TOTAL_PASS}"
+"""
+register   = "total_pass"
+depends_on = ["verify-access-controls", "verify-data-controls", "verify-operational-controls"]
+timeout    = "10m"
+working_dir = "/tmp"
+
+# ── Framework mapping via matrix ──────────────────────────────────────────────
+
+[tasks.map-framework-controls]
+name       = "Map Controls to {{.framework}} Framework"
+cmd        = """
+echo "Mapping collected evidence to {{.framework}} requirements..."
+echo ""
+case "{{.framework}}" in
+  SOC2)
+    echo "SOC 2 Type II Trust Service Criteria:"
+    echo "  CC1 (Control Environment)  : {{.ac_pass}}/10 controls → 100% coverage"
+    echo "  CC6 (Logical Access)       : {{.ac_pass}}/10 controls → 100% coverage"
+    echo "  CC7 (System Operations)    : {{.oc_pass}}/10 controls → 100% coverage"
+    echo "  C1  (Confidentiality)      : {{.dc_pass}}/10 controls →  90% coverage"
+    echo ""
+    echo "SOC 2 readiness: READY FOR AUDITOR REVIEW"
+    ;;
+  ISO27001)
+    echo "ISO 27001:2022 Annex A Controls:"
+    echo "  A.5  (Org. Controls)       : mapped from access + ops domains"
+    echo "  A.8  (Technological)       : mapped from data + ops domains"
+    echo "  A.9  (Physical)            : out of scope for this workflow"
+    echo ""
+    echo "ISO 27001 gap count: 1 (DC-9 BAA renewal)"
+    echo "Certification readiness: CONDITIONAL PASS"
+    ;;
+  HIPAA)
+    echo "HIPAA Security Rule Safeguards:"
+    echo "  Administrative safeguards  : mapped from ops domain"
+    echo "  Technical safeguards       : mapped from data + access domains"
+    echo "  PHI access log review      : complete"
+    echo ""
+    echo "HIPAA compliance status: SUBSTANTIALLY COMPLIANT"
+    echo "Open items: 1 (DC-9 Business Associate Agreement)"
+    ;;
+esac
+echo "Framework mapping complete for {{.framework}}"
+"""
+depends_on  = ["collect-evidence"]
+timeout     = "5m"
+ignore_failure = true
+
+[tasks.map-framework-controls.matrix]
+framework = ["SOC2", "ISO27001", "HIPAA"]
+
+# ── Coverage scoring and report gate ─────────────────────────────────────────
+
+[tasks.compute-coverage-score]
+name       = "Compute Coverage Score and Audit Readiness"
+cmd        = """
+TOTAL={{.total_pass}}
+MAX=30
+SCORE=$(( (TOTAL * 100) / MAX ))
+echo "Coverage score: ${SCORE}%  (${TOTAL}/${MAX} controls passed)"
+echo ""
+if [ "${SCORE}" -ge 90 ]; then
+  echo "RESULT: PASS — meets minimum 90% threshold for audit sign-off"
+  echo "pass"
+else
+  echo "RESULT: BELOW THRESHOLD — ${SCORE}% < 90% required"
+  echo "remediation required before audit sign-off"
+  echo "fail"
+fi
+"""
+register   = "coverage_result"
+depends_on = ["map-framework-controls[framework=SOC2]", "map-framework-controls[framework=ISO27001]", "map-framework-controls[framework=HIPAA]"]
+timeout    = "3m"
+
+# ── Report generation (gated on coverage) ────────────────────────────────────
+
+[tasks.generate-compliance-report]
+name       = "Generate Compliance Attestation Report"
+cmd        = """
+EVIDENCE="/tmp/wf-compliance/evidence-{{.audit_id}}"
+REPORT="${EVIDENCE}/reports/compliance-attestation-$(date +%Y%m%d).pdf"
+echo "Generating compliance attestation report..."
+echo ""
+echo "Report ID   : {{.audit_id}}"
+echo "Date        : $(date +%Y-%m-%d)"
+echo "Period      : Annual review"
+echo "Result      : {{.coverage_result}} ({{.total_pass}}/30 controls)"
+echo ""
+echo "Sections:"
+echo "  1. Executive Summary"
+echo "  2. Scope and Methodology"
+echo "  3. Control Assessment Results"
+echo "  4. Framework Mapping (SOC 2 / ISO 27001 / HIPAA)"
+echo "  5. Findings and Remediation Plan"
+echo "  6. Management Attestation"
+echo ""
+echo "Report saved: ${REPORT}"
+echo "${REPORT}"
+"""
+register   = "report_path"
+if         = 'coverage_result == "pass"'
+depends_on = ["compute-coverage-score"]
+timeout    = "10m"
+working_dir = "/tmp"
+
+# ── Evidence submission ───────────────────────────────────────────────────────
+
+[tasks.submit-to-compliance-portal]
+name           = "Submit Evidence Package to Compliance Portal"
+cmd            = """
+echo "Uploading evidence to compliance portal (Vanta / Drata)..."
+echo ""
+echo "  Audit ID    : {{.audit_id}}"
+echo "  Report      : {{.report_path}}"
+echo "  Evidence    : 47 artefacts"
+echo ""
+echo "  Access domain  : uploaded ({{.ac_pass}} controls)"
+echo "  Data domain    : uploaded ({{.dc_pass}} controls)"
+echo "  Ops domain     : uploaded ({{.oc_pass}} controls)"
+echo ""
+echo "Portal submission complete. Auditor review queue: 3-5 business days."
+"""
+depends_on     = ["generate-compliance-report"]
+ignore_failure = true
+retries        = 2
+retry_delay    = "30s"
+timeout        = "10m"
+env            = {PORTAL_URL = "https://compliance-portal.example.com", PORTAL_TOKEN = "REDACTED"}
+
+[tasks.notify-compliance-team]
+name           = "Notify Compliance Team and Management"
+cmd            = """
+echo "=== COMPLIANCE AUDIT NOTIFICATION ==="
+echo ""
+echo "Audit ID    : {{.audit_id}}"
+echo "Result      : {{.coverage_result}}"
+echo "Controls    : {{.total_pass}}/30 passed"
+echo "Report      : {{.report_path}}"
+echo ""
+echo "Notified:"
+echo "  - Chief Compliance Officer"
+echo "  - CISO"
+echo "  - Head of Engineering"
+echo "  - External auditor (if applicable)"
+echo ""
+echo "Next review due: $(date -d '1 year' +%Y-%m-%d)"
+"""
+depends_on     = ["submit-to-compliance-portal"]
+ignore_failure = true
+timeout        = "3m"
+
+# ── Forensic escalation ───────────────────────────────────────────────────────
+
+[tasks.escalate-incomplete-audit]
+type           = "forensic"
+name           = "Escalate Incomplete Audit"
+cmd            = """
+echo "ALERT: Compliance audit could not complete"
+echo ""
+echo "Failed task    : {{.failed_task}}"
+echo "Error message  : {{.error_message}}"
+echo "Audit ID       : {{.audit_id}}"
+echo ""
+echo "Actions taken:"
+echo "  - Incident ticket created: INC-$(date +%Y%m%d%H%M)"
+echo "  - Compliance team notified via PagerDuty"
+echo "  - Partial evidence preserved at /tmp/wf-compliance/evidence-{{.audit_id}}"
+echo "  - Scheduled retry: next maintenance window"
+echo ""
+echo "DO NOT SIGN OFF on any compliance attestation until the audit completes."
+"""
+ignore_failure = true
+timeout        = "5m"

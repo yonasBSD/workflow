@@ -1,0 +1,240 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# release-management.toml  ·  Software Release Management
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Release Engineering / Open Source
+#
+# Features demonstrated:
+#   ✓ matrix expansion — publish to multiple package registries in parallel
+#   ✓ register (semantic version captured early, used throughout pipeline)
+#   ✓ working_dir (all build tasks run in project directory)
+#   ✓ env vars per task (credentials per registry)
+#   ✓ retries + retry_delay (registry uploads are flaky)
+#   ✓ timeout per task
+#   ✓ --var at runtime (override release version, channel)
+#   ✓ ignore_failure (non-critical announcement steps)
+#   ✓ tags (release, publish, semver)
+#
+# Matrix: publish tasks fan out across npm, PyPI, Docker Hub, GitHub Packages
+#
+# Try:
+#   wf run release-management --parallel --print-output
+#   wf run release-management --var RELEASE_CHANNEL=rc
+#   wf run release-management --var VERSION=3.1.0
+#   wf graph release-management
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "release-management"
+description = "Full release pipeline: version bump → changelogs → build → sign → publish (multi-registry) → announce"
+tags        = ["release", "publish", "semver", "oss"]
+
+# ── Pre-release checks ────────────────────────────────────────────────────────
+
+[tasks.preflight]
+name = "Pre-release Preflight"
+cmd  = """
+echo "Checking release prerequisites..."
+echo "  ✓ All CI checks green on main"
+echo "  ✓ Signed commit by maintainer"
+echo "  ✓ CHANGELOG.md up to date"
+echo "  ✓ No open P0 bugs"
+echo "  ✓ Version locks: go.sum, package-lock.json up to date"
+echo "Preflight passed"
+"""
+
+# ── Version management ────────────────────────────────────────────────────────
+
+[tasks.bump-version]
+name       = "Bump Semantic Version"
+cmd        = """
+CHANNEL="${RELEASE_CHANNEL:-stable}"
+# Simulate reading current version and bumping patch
+CURRENT="2.7.3"
+MAJOR=2; MINOR=7; PATCH=4
+NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+if [ "$CHANNEL" = "rc" ]; then
+  NEW_VERSION="${NEW_VERSION}-rc.1"
+fi
+echo "Current  : $CURRENT"
+echo "New      : $NEW_VERSION"
+echo "Channel  : $CHANNEL"
+echo "Tag      : v$NEW_VERSION"
+echo "$NEW_VERSION"
+"""
+register    = "version"
+depends_on  = ["preflight"]
+working_dir = "/tmp"
+
+[tasks.generate-changelog]
+name       = "Generate CHANGELOG Entry"
+cmd        = """
+sleep 1
+mkdir -p /tmp/wf-release/dist
+echo "Generating CHANGELOG for v{{.version}}..."
+echo "---"
+echo "## [{{.version}}] - $(date +%Y-%m-%d)"
+echo ""
+echo "### Added"
+echo "- Work-stealing executor for maximum parallel throughput"
+echo "- Per-run timeout support (--timeout flag)"
+echo "- Tag-based workflow filtering (wf runs --tag)"
+echo ""
+echo "### Fixed"
+echo "- Race condition in parallel executor semaphore release"
+echo "- Incorrect duration formatting for sub-second tasks"
+echo "---"
+"""
+depends_on  = ["bump-version"]
+working_dir = "/tmp"
+
+# ── Build artifacts ───────────────────────────────────────────────────────────
+
+[tasks.build-go]
+name       = "Build Go Binary (all platforms)"
+cmd        = """
+sleep 3
+mkdir -p /tmp/wf-release/dist
+for platform in linux-amd64 darwin-arm64 darwin-amd64 windows-amd64; do
+  EXT=""
+  [ "${platform#*windows}" != "$platform" ] && EXT=".exe"
+  echo "wf-v{{.version}}-$platform$EXT" > /tmp/wf-release/dist/wf-v{{.version}}-$platform$EXT
+  echo "  Built: wf-v{{.version}}-$platform$EXT"
+done
+echo "4 binaries built"
+"""
+depends_on  = ["generate-changelog"]
+timeout     = "15m"
+working_dir = "/tmp/wf-release"
+env         = {CGO_ENABLED = "0", GOFLAGS = "-trimpath"}
+
+[tasks.build-docker]
+name       = "Build & Tag Docker Image"
+cmd        = """
+sleep 2
+IMAGE="ghcr.io/joelfokou/wf"
+echo "Building: $IMAGE:{{.version}}"
+echo "Building: $IMAGE:latest"
+echo "Building: $IMAGE:2.7"
+echo "Base: gcr.io/distroless/static:nonroot (scratch-like, no shell)"
+echo "Image size: 18.2 MB"
+echo "  Layers: 3 (OS certs, timezone data, binary)"
+echo "$IMAGE:{{.version}}"
+"""
+register   = "docker_image"
+depends_on = ["build-go"]
+timeout    = "10m"
+working_dir = "/tmp/wf-release"
+
+[tasks.build-python-wheel]
+name       = "Build Python Wheel & sdist"
+cmd        = """
+sleep 2
+mkdir -p /tmp/wf-release/dist/python
+echo "wf-py-{{.version}}-py3-none-any.whl" > /tmp/wf-release/dist/python/wf-{{.version}}-py3-none-any.whl
+echo "wf-py-{{.version}}.tar.gz"           > /tmp/wf-release/dist/python/wf-{{.version}}.tar.gz
+echo "Built wheel  : wf-py-{{.version}}-py3-none-any.whl"
+echo "Built sdist  : wf-py-{{.version}}.tar.gz"
+"""
+depends_on = ["generate-changelog"]
+timeout    = "5m"
+working_dir = "/tmp/wf-release"
+
+# ── Code signing ──────────────────────────────────────────────────────────────
+
+[tasks.sign-binaries]
+name       = "Sign Binaries & Generate SBOM"
+cmd        = """
+sleep 2
+echo "Signing binaries with Sigstore Cosign (keyless, OIDC)..."
+for f in /tmp/wf-release/dist/wf-v{{.version}}-*; do
+  echo "  cosign sign-blob $f → $(echo $f | cksum | awk '{printf "%08x", $1}').sig"
+done
+echo ""
+echo "Generating SBOM (CycloneDX format)..."
+echo "  Components: 47 Go modules"
+echo "  SBOM saved: /tmp/wf-release/dist/sbom-v{{.version}}.cdx.json"
+"""
+depends_on = ["build-go", "build-docker"]
+timeout    = "5m"
+clean_env  = true
+
+# ── Publish to registries (matrix) ───────────────────────────────────────────
+
+[tasks.publish-registry]
+name       = "Publish to Registry"
+cmd        = """
+sleep 2
+REGISTRY="(simulated-registry)"
+echo "Publishing v{{.version}} to $REGISTRY..."
+echo "  Package  : wf v{{.version}}"
+echo "  Checksum : $(date +%s | cksum | awk '{printf "%08x", $1}')"
+echo "  URL      : https://registry.example.com/wf/v{{.version}}"
+echo "Published successfully to $REGISTRY"
+echo "success"
+"""
+depends_on  = ["sign-binaries", "build-python-wheel"]
+retries     = 3
+retry_delay = "20s"
+timeout     = "10m"
+
+[tasks.publish-registry.matrix]
+registry = ["npm", "pypi", "dockerhub", "ghcr", "homebrew"]
+
+# ── GitHub release ────────────────────────────────────────────────────────────
+
+[tasks.create-github-release]
+name       = "Create GitHub Release"
+cmd        = """
+sleep 1
+echo "Creating GitHub release: v{{.version}}"
+echo "  Assets attached: 4 binaries, SBOM, checksums"
+echo "  Release notes  : from CHANGELOG.md"
+echo "  URL: https://github.com/joelfokou/wf/releases/tag/v{{.version}}"
+"""
+depends_on = ["publish-registry[registry=ghcr]", "sign-binaries"]
+retries    = 2
+retry_delay = "10s"
+timeout    = "5m"
+env        = {GITHUB_TOKEN = "REDACTED"}
+
+# ── Post-release announcements ────────────────────────────────────────────────
+
+[tasks.announce-twitter]
+name           = "Post Release Tweet"
+cmd            = """
+echo "🚀 wf v{{.version}} is out!"
+echo "   → https://github.com/joelfokou/wf/releases/tag/v{{.version}}"
+"""
+depends_on     = ["create-github-release"]
+ignore_failure = true
+
+[tasks.announce-slack]
+name           = "Post to #releases Slack Channel"
+cmd            = """
+echo "📦 *wf v{{.version}} released*"
+echo "   Changelog: https://github.com/joelfokou/wf/blob/main/CHANGELOG.md#{{.version}}"
+echo "   Docker   : ghcr.io/joelfokou/wf:{{.version}}"
+"""
+depends_on     = ["create-github-release"]
+ignore_failure = true
+
+[tasks.announce-hackernews]
+name           = "Submit to Hacker News (optional)"
+cmd            = """
+echo "Submitting: 'Show HN: wf — local-first workflow orchestrator v{{.version}}'"
+echo "URL: https://news.ycombinator.com/submit"
+"""
+depends_on     = ["create-github-release"]
+ignore_failure = true
+
+[tasks.update-docs]
+name           = "Trigger Docs Site Rebuild"
+cmd            = """
+sleep 1
+echo "Dispatching docs rebuild workflow..."
+echo "Version in docs: {{.version}}"
+echo "Docs site: https://wf.joelfokou.dev"
+"""
+depends_on     = ["create-github-release"]
+ignore_failure = true
+retries        = 2
+retry_delay    = "10s"

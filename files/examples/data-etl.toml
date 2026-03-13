@@ -1,0 +1,276 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# data-etl.toml  ·  Data Engineering ETL Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Data Engineering / Analytics
+#
+# Features demonstrated:
+#   ✓ parallel extraction from 3 independent sources
+#   ✓ register (row counts from each source)
+#   ✓ if conditional (skip load when validation fails)
+#   ✓ retries + retry_delay (network-like operations)
+#   ✓ timeout per task
+#   ✓ ignore_failure (non-critical enrichment)
+#   ✓ working_dir (write output to project directory)
+#   ✓ global on_failure forensic trap (data rollback)
+#   ✓ --var at runtime (target date, environment)
+#   ✓ tags (data, etl, nightly)
+#
+# Try:
+#   wf run data-etl --parallel --print-output
+#   wf run data-etl --work-stealing --max-parallel 4 --print-output
+#   wf run data-etl --var TARGET_DATE=2025-01-15 --var ENV=production
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "data-etl"
+description = "Nightly ETL: extract (3 sources in parallel) → validate → transform → enrich → load → verify"
+tags        = ["data", "etl", "nightly"]
+on_failure  = "rollback-target-tables"
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+[tasks.init-run]
+name = "Initialise ETL Run"
+cmd  = """
+RUN_DATE=$(date +%Y-%m-%d)
+mkdir -p /tmp/wf-etl/raw /tmp/wf-etl/clean /tmp/wf-etl/final /tmp/wf-etl/logs
+echo "ETL run: $RUN_DATE"
+echo "Workspace: /tmp/wf-etl"
+echo "$RUN_DATE"
+"""
+register = "run_date"
+
+# ── Extract (all three fire in parallel) ──────────────────────────────────────
+
+[tasks.extract-transactions]
+name        = "Extract · Transactions DB"
+cmd         = """
+sleep 2
+ROW_COUNT=847293
+echo "Source: postgresql://txn-db:5432/transactions"
+echo "Query : SELECT * FROM txn WHERE date = '{{.run_date}}'"
+echo "Rows  : $ROW_COUNT"
+echo "$ROW_COUNT rows" > /tmp/wf-etl/raw/transactions.csv
+echo "$ROW_COUNT"
+"""
+register    = "txn_rows"
+depends_on  = ["init-run"]
+retries     = 3
+retry_delay = "5s"
+timeout     = "10m"
+
+[tasks.extract-events]
+name        = "Extract · Event Stream (Kafka)"
+cmd         = """
+sleep 3
+ROW_COUNT=2341807
+echo "Source: kafka://events-cluster/user-events"
+echo "Offset: 14,823,901 → 17,165,708"
+echo "Rows  : $ROW_COUNT"
+echo "$ROW_COUNT rows" > /tmp/wf-etl/raw/events.jsonl
+echo "$ROW_COUNT"
+"""
+register    = "event_rows"
+depends_on  = ["init-run"]
+retries     = 2
+retry_delay = "10s"
+timeout     = "15m"
+
+[tasks.extract-crm]
+name        = "Extract · CRM API (REST)"
+cmd         = """
+sleep 2
+ROW_COUNT=12480
+echo "Source: https://crm.internal/api/v2/contacts?updated_since={{.run_date}}"
+echo "Pages : 50 (limit 250/page)"
+echo "Rows  : $ROW_COUNT"
+echo "$ROW_COUNT rows" > /tmp/wf-etl/raw/crm_contacts.json
+echo "$ROW_COUNT"
+"""
+register    = "crm_rows"
+depends_on  = ["init-run"]
+retries     = 5
+retry_delay = "8s"
+timeout     = "8m"
+
+# ── Validate extracted data ────────────────────────────────────────────────────
+
+[tasks.validate-transactions]
+name       = "Validate Transactions Schema"
+cmd        = "sleep 1 && echo passed"
+register   = "txn_valid"
+depends_on = ["extract-transactions"]
+timeout    = "3m"
+
+[tasks.validate-events]
+name       = "Validate Event Schema"
+cmd        = "sleep 1 && echo passed"
+register   = "events_valid"
+depends_on = ["extract-events"]
+timeout    = "3m"
+
+[tasks.validate-crm]
+name       = "Validate CRM Contacts Schema"
+cmd        = "sleep 1 && echo passed"
+register   = "crm_valid"
+depends_on = ["extract-crm"]
+timeout    = "3m"
+
+# ── Transform ──────────────────────────────────────────────────────────────────
+
+[tasks.transform-transactions]
+name       = "Transform Transactions"
+cmd        = """
+sleep 3
+echo "Deduplicating, normalising currency, applying FX rates..."
+echo "Input : {{.txn_rows}} rows"
+echo "Output: /tmp/wf-etl/clean/transactions.parquet"
+echo "Dropped 142 duplicates, 0 invalid records"
+"""
+if         = 'txn_valid == "passed"'
+depends_on = ["validate-transactions"]
+timeout    = "20m"
+working_dir = "/tmp/wf-etl"
+
+[tasks.transform-events]
+name       = "Transform Events (sessionise)"
+cmd        = """
+sleep 4
+echo "Sessionising {{.event_rows}} raw events..."
+echo "Session windows: 30 min inactivity"
+echo "Output sessions: 183,421"
+echo "Output: /tmp/wf-etl/clean/sessions.parquet"
+"""
+if         = 'events_valid == "passed"'
+depends_on = ["validate-events"]
+timeout    = "25m"
+working_dir = "/tmp/wf-etl"
+
+[tasks.transform-crm]
+name       = "Transform CRM Contacts"
+cmd        = """
+sleep 2
+echo "Normalising phone numbers, deduplicating email addresses..."
+echo "Merged {{.crm_rows}} records → 11,203 canonical contacts"
+echo "Output: /tmp/wf-etl/clean/contacts.parquet"
+"""
+if         = 'crm_valid == "passed"'
+depends_on = ["validate-crm"]
+timeout    = "10m"
+working_dir = "/tmp/wf-etl"
+
+# ── Enrich (optional, non-blocking) ───────────────────────────────────────────
+
+[tasks.enrich-geo]
+name           = "Geo-enrich IP Addresses"
+cmd            = """
+sleep 2
+echo "Calling MaxMind GeoIP API for 42,310 unique IPs..."
+echo "Enriched 41,890 IPs (99.0% hit rate)"
+echo "Output: /tmp/wf-etl/clean/sessions_geo.parquet"
+"""
+depends_on     = ["transform-events"]
+ignore_failure = true     # enrichment outage must not block the pipeline
+timeout        = "5m"
+retries        = 2
+retry_delay    = "10s"
+
+# ── Join & aggregate ──────────────────────────────────────────────────────────
+
+[tasks.join-all]
+name       = "Join All Sources → Unified Model"
+cmd        = """
+sleep 4
+echo "LEFT JOIN transactions ON sessions.user_id"
+echo "LEFT JOIN contacts    ON sessions.user_id"
+echo "Output rows  : 1,024,381"
+echo "Output: /tmp/wf-etl/final/unified.parquet"
+"""
+depends_on = ["transform-transactions", "transform-events", "transform-crm", "enrich-geo"]
+timeout    = "30m"
+working_dir = "/tmp/wf-etl"
+
+[tasks.aggregate-kpis]
+name       = "Aggregate Daily KPIs"
+cmd        = '''
+sleep 3
+echo "Computing: DAU, revenue, conversion rate, churn risk..."
+echo "Daily Active Users   : 184,203"
+echo "Gross Revenue        : \$2,847,193"
+echo "Conversion Rate      : 3.42%"
+echo "High-churn Accounts  : 1,247"
+echo "Output: /tmp/wf-etl/final/kpis_$(date +%Y%m%d).parquet"
+'''
+depends_on = ["join-all"]
+timeout    = "15m"
+
+# ── Load ──────────────────────────────────────────────────────────────────────
+
+[tasks.load-warehouse]
+name        = "Load → Data Warehouse (BigQuery)"
+cmd         = """
+sleep 3
+echo "Loading /tmp/wf-etl/final/*.parquet → bq://analytics.daily_unified"
+echo "Rows loaded  : 1,024,381"
+echo "Bytes written: 1.8 GB"
+echo "Job ID: bqjob_$(date +%s)"
+echo "success"
+"""
+register    = "load_status"
+depends_on  = ["aggregate-kpis"]
+retries     = 2
+retry_delay = "30s"
+timeout     = "20m"
+env         = {BQ_PROJECT = "analytics-prod", BQ_DATASET = "daily_unified"}
+
+[tasks.load-dashboard-cache]
+name           = "Refresh Dashboard Cache (Redis)"
+cmd            = """
+sleep 1
+echo "Flushing cache keys: dashboard:kpis:*"
+echo "Writing 48 pre-computed KPI cards"
+echo "TTL: 86400s"
+"""
+depends_on     = ["load-warehouse"]
+ignore_failure = true
+retries        = 3
+retry_delay    = "5s"
+
+# ── Verify & notify ───────────────────────────────────────────────────────────
+
+[tasks.verify-row-counts]
+name       = "Row Count Reconciliation"
+cmd        = """
+sleep 1
+echo "Source TXN   : {{.txn_rows}} rows"
+echo "Source Events: {{.event_rows}} rows"
+echo "Source CRM   : {{.crm_rows}} rows"
+echo "Warehouse    : 1,024,381 rows"
+echo "Reconciliation PASSED — no anomalies detected"
+"""
+depends_on = ["load-warehouse"]
+
+[tasks.notify-complete]
+name           = "Slack: ETL Complete"
+cmd            = """
+echo "✅ Nightly ETL complete for {{.run_date}}"
+echo "   TXN rows   : {{.txn_rows}}"
+echo "   Event rows : {{.event_rows}}"
+echo "   CRM rows   : {{.crm_rows}}"
+echo "   Load status: {{.load_status}}"
+"""
+depends_on     = ["verify-row-counts", "load-dashboard-cache"]
+ignore_failure = true
+
+# ── Forensic task ─────────────────────────────────────────────────────────────
+
+[tasks.rollback-target-tables]
+name = "Rollback Warehouse Tables"
+type = "forensic"
+cmd  = """
+echo "🔴 ETL FAILED — initiating rollback"
+echo "   Pipeline : {{.failed_dag}}"
+echo "   Error    : {{.error_message}}"
+echo "Restoring analytics.daily_unified from yesterday's snapshot..."
+sleep 2
+echo "Rollback complete. Tables restored to $(date -d yesterday +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo 'previous day')."
+"""

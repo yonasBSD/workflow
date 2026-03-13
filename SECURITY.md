@@ -2,40 +2,63 @@
 
 ## Supported Versions
 
-As this project is in early development (v0.x), only the latest release is officially supported with security updates.
+Only the latest release receives security updates.
 
 | Version | Supported |
-| ------- | ----------- |
-| v0.1.x  | ✔ |
-| < 0.1.0 | ✖ |
+|---|---|
+| latest | ✔ |
+| older  | ✖ |
+
+---
 
 ## Reporting a Vulnerability
 
-`workflow` takes its security seriously. If you believe you have found a security vulnerability, please report it as described below.
+**Do not report security vulnerabilities through public GitHub issues.**
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+Use [GitHub Security Advisories](https://github.com/joelfokou/workflow/security/advisories/new) to submit a private report. You will receive an acknowledgement within 48 hours.
 
-### How to Report
+Include:
+1. `wf --version` output
+2. A description of the vulnerability
+3. Steps to reproduce — a malicious TOML file, a crafted workflow name, or a specific command sequence
+4. The impact you believe the vulnerability enables
 
-Please email **dev.dilute902@passinbox.com** with the subject line `[SECURITY] workflow vulnerability`.
+---
 
-In your email, please include:
-1. The specific version of `wf` you are using.
-2. A description of the vulnerability.
-3. Steps to reproduce the issue (e.g., a malicious TOML file or specific command sequence).
+## Review process
 
-### Review Process
+1. Acknowledgement within 48 hours
+2. Investigation and impact assessment
+3. If confirmed: patch released, CVE requested if warranted
+4. Contribution acknowledged in release notes unless you prefer anonymity
 
-1. You will receive an acknowledgement of receipt of your report within 48 hours.
-2. The issue will be investigated and its impact determined.
-3. If confirmed, a patch will be released as quickly as possible.
-4. Once the patch is released, your contribution will be publicly acknowledged (unless you prefer to remain anonymous).
+---
 
-### Scope
+## Security model
 
-`workflow` is a local execution tool. Specific interests are placed in:
-- **Arbitrary Code Execution:** Situations where `wf` executes code not defined in the intended workflow.
-- **Privilege Escalation:** If `wf` can be tricked into running commands with higher privileges than the user intended.
-- **Data Leakage:** If `wf` logs sensitive environment variables despite configuration to suppress them.
+`wf` has a formal, documented security model. Full details at [docs/security/model.md](docs/security/model.md).
 
-Thank you for helping keep `workflow` safe!
+| Threat | Defence |
+|---|---|
+| Path traversal via workflow name | Two-layer validation (`internal/security/validate.go`) |
+| Template injection via registered variables | Regex-only `{{.var}}` substitution — no template logic |
+| Dynamic-linker injection via task `env` | Deny-list: `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_*`, and others |
+| Memory exhaustion via unbounded output | 10 MiB capture cap with silent drop |
+| Working directory escape | Blocks `/proc`, `/sys`, `/dev` and null bytes |
+| Log and database information disclosure | Files created at mode `0600` |
+| SQL injection | Parameterised queries throughout |
+
+Automated tests covering each class are in `tests/security/`.
+
+---
+
+## Scope
+
+Areas of particular interest:
+- Arbitrary code execution — `wf` executing commands not in the intended workflow
+- Privilege escalation — commands running with higher privileges than the calling user
+- Audit trail tampering — any path to modify or delete audit records after creation
+- Variable poisoning — a task overwriting another task's registered variable
+- Path traversal — loading a workflow file outside the configured workflows directory
+
+Out of scope: attacks requiring physical host access, vulnerabilities in the host OS or SQLite itself, and attacks that require the attacker to already control the workflows directory.

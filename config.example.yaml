@@ -1,12 +1,21 @@
-# workflow configuration file
-# This file controls global behaviour of the workflow CLI and can be overridden by environment variables or command-line flags.
-# Paths should correspond to your OS conventions.
-# Modify as needed
+# wf configuration file
+#
+# Copy to ~/.config/workflow/config.yaml and edit as needed.
+# All values can be overridden by WF_* environment variables or CLI flags.
+# Priority: CLI flags > config file > WF_* env vars > built-in defaults
+#
+# Default paths by OS:
+#   Linux   : config  ~/.config/workflow/config.yaml
+#             data    ~/.cache/workflow/
+#   macOS   : config  ~/Library/Application Support/workflow/config.yaml
+#             data    ~/Library/Caches/workflow/
+#   Windows : config  %AppData%\workflow\config.yaml
+#             data    %LocalAppData%\workflow\
 
 paths:
-  data: ~/.workflow
-  workflows: ~/.workflow/workflows
-  logs: ~/.workflow/logs
-  database: ~/.workflow/workflow.db
+  workflows: ~/.config/workflow/workflows   # WF_PATHS_WORKFLOWS
+  database:  ~/.cache/workflow/workflow.db  # WF_PATHS_DATABASE
+  logs:      ~/.cache/workflow/logs         # WF_PATHS_LOGS
+  logs_file: ~/.cache/workflow/workflow.log # WF_PATHS_LOGS_FILE
 
-log_level: info
+log_level: info   # WF_LOG_LEVEL — debug | info | warn | error

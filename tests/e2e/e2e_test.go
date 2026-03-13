@@ -6,19 +6,30 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/run"
+	"github.com/joelfokou/workflow/internal/storage"
 	"github.com/joelfokou/workflow/tests/helpers"
 )
 
+// wfBinary is the platform-specific name of the compiled wf executable.
+var wfBinary = func() string {
+	if runtime.GOOS == "windows" {
+		return "wf.exe"
+	}
+	return "wf"
+}()
+
 func init() {
-	logger.Init(logger.Config{
+	if err := logger.Init(logger.Config{
 		Level:  "info",
 		Format: "console",
-	})
+	}); err != nil {
+		panic(err)
+	}
 }
 
 // TestE2ECompleteWorkflow tests the entire CLI workflow from start to finish.
@@ -74,6 +85,26 @@ func TestE2ECompleteWorkflow(t *testing.T) {
 	t.Run("resume", func(t *testing.T) {
 		testResume(t, fs)
 	})
+
+	// Test audit command
+	t.Run("audit", func(t *testing.T) {
+		testAudit(t, fs)
+	})
+
+	// Test inspect command
+	t.Run("inspect", func(t *testing.T) {
+		testInspect(t, fs)
+	})
+
+	// Test health command
+	t.Run("health", func(t *testing.T) {
+		testHealth(t, fs)
+	})
+
+	// Test runs advanced flags
+	t.Run("runs_advanced", func(t *testing.T) {
+		testRunsAdvanced(t, fs)
+	})
 }
 
 // TestE2EErrorHandling tests error scenarios across the CLI.
@@ -123,7 +154,7 @@ func TestE2EConfigManagement(t *testing.T) {
 // setupProject creates the necessary project structure for E2E testing.
 func setupProject(fs *helpers.TestFS) error {
 	// Build the wf binary
-	output, err := exec.Command("go", "build", "-o", filepath.Join(fs.Path("."), "wf"), "../..").CombinedOutput()
+	output, err := exec.Command("go", "build", "-o", filepath.Join(fs.Path("."), wfBinary), "../..").CombinedOutput() //nolint:gosec
 	if err != nil {
 		panic(fmt.Sprintf("failed to build wf binary: %v\noutput: %s", err, string(output)))
 	}
@@ -305,13 +336,13 @@ func testRun(t *testing.T, fs *helpers.TestFS) {
 
 	// Verify database has run recorded
 	dbPath := filepath.Join(fs.Path("test.db"))
-	store, err := run.NewStore(dbPath)
+	store, err := storage.New(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
 	defer store.Close()
 
-	runs, err := store.ListRuns("simple", "", 10, 0)
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: "simple", Limit: 10})
 	if err != nil {
 		t.Fatalf("failed to list runs: %v", err)
 	}
@@ -320,7 +351,7 @@ func testRun(t *testing.T, fs *helpers.TestFS) {
 		t.Fatal("expected run to be recorded in database")
 	}
 
-	if runs[0].Status != run.StatusSuccess {
+	if runs[0].Status != storage.RunSuccess {
 		t.Errorf("expected status success, got %s", runs[0].Status)
 	}
 
@@ -332,7 +363,7 @@ func testRun(t *testing.T, fs *helpers.TestFS) {
 		t.Fatalf("run --dry-run command failed: %v", err)
 	}
 
-	if !strings.Contains(string(output), "DRY RUN MODE") {
+	if !strings.Contains(string(output), "EXECUTION PLAN") {
 		t.Error("expected dry run output")
 	}
 
@@ -344,7 +375,7 @@ func testRun(t *testing.T, fs *helpers.TestFS) {
 		t.Fatalf("run --dry-run --json command failed: %v", err)
 	}
 
-	if !strings.Contains(string(output), "\"workflow\"") {
+	if !strings.Contains(string(output), "\"workflow_name\"") {
 		t.Error("expected JSON output format")
 	}
 }
@@ -359,12 +390,12 @@ func testLogs(t *testing.T, fs *helpers.TestFS) {
 
 	// Get the run ID
 	dbPath := filepath.Join(fs.Path("test.db"))
-	store, err := run.NewStore(dbPath)
+	store, err := storage.New(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
 
-	runs, err := store.ListRuns("simple", "", 10, 0)
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: "simple", Limit: 10})
 	store.Close()
 
 	if err != nil || len(runs) == 0 {
@@ -435,9 +466,9 @@ func testRuns(t *testing.T, fs *helpers.TestFS) {
 func testResume(t *testing.T, fs *helpers.TestFS) {
 	// Run a workflow that will fail
 	cmd := newCmd(fs, "run", "resume")
-	output, err := cmd.CombinedOutput()
-
-	if err == nil {
+	var output []byte
+	var err error
+	if _, err = cmd.CombinedOutput(); err == nil {
 		t.Fatal("expected run to fail for 'resume' workflow")
 	}
 
@@ -450,13 +481,13 @@ func testResume(t *testing.T, fs *helpers.TestFS) {
 
 	// Retrieve the run ID of the failed run
 	dbPath := filepath.Join(fs.Path("test.db"))
-	store, err := run.NewStore(dbPath)
+	store, err := storage.New(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
 	defer store.Close()
 
-	runs, err := store.ListRuns("resume", "", 10, 0)
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: "resume", Limit: 10})
 	if err != nil || len(runs) == 0 {
 		t.Fatal("no runs found to resume")
 	}
@@ -471,11 +502,11 @@ func testResume(t *testing.T, fs *helpers.TestFS) {
 		t.Fatalf("resume command failed: %v\noutput: %s", err, string(output))
 	}
 
-	if !strings.Contains(string(output), "Resuming workflow run") {
-		t.Error("expected resume output")
+	if !strings.Contains(string(output), "EXECUTION RESULT") {
+		t.Errorf("expected execution result output, got: %s", string(output))
 	}
 
-	runs, err = store.ListRuns("resume", "", 10, 0)
+	runs, err = store.ListRuns(storage.RunFilters{WorkflowName: "resume", Limit: 10})
 	if err != nil {
 		t.Fatalf("failed to list runs: %v", err)
 	}
@@ -484,14 +515,16 @@ func testResume(t *testing.T, fs *helpers.TestFS) {
 		t.Fatal("expected run to be recorded in database")
 	}
 
-	if runs[0].Status != run.StatusSuccess {
+	if runs[0].Status != storage.RunSuccess {
 		t.Errorf("expected status success after resume, got %s", runs[0].Status)
 	}
 }
 
 // testInvalidWorkflow tests behavior with invalid workflow.
 func testInvalidWorkflow(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newCmd(fs, "validate", "invalid")
 	_, err := cmd.CombinedOutput()
@@ -503,7 +536,9 @@ func testInvalidWorkflow(t *testing.T, fs *helpers.TestFS) {
 
 // testMissingWorkflow tests behavior with missing workflow.
 func testMissingWorkflow(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newCmd(fs, "run", "nonexistent")
 	_, err := cmd.CombinedOutput()
@@ -515,7 +550,9 @@ func testMissingWorkflow(t *testing.T, fs *helpers.TestFS) {
 
 // testCycleDetection tests cycle detection in workflows.
 func testCycleDetection(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	cycleWorkflow := helpers.CycleWorkflow()
 
@@ -534,7 +571,9 @@ func testCycleDetection(t *testing.T, fs *helpers.TestFS) {
 
 // testMissingDependency tests detection of missing dependencies.
 func testMissingDependency(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newCmd(fs, "validate", "invalid")
 	_, err := cmd.CombinedOutput()
@@ -546,7 +585,9 @@ func testMissingDependency(t *testing.T, fs *helpers.TestFS) {
 
 // testEnvVarOverride tests environment variable configuration override.
 func testEnvVarOverride(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newCmd(fs, "init")
 	cmd.Env = append(cmd.Env,
@@ -563,7 +604,9 @@ func testEnvVarOverride(t *testing.T, fs *helpers.TestFS) {
 
 // testConfigFileOverride tests config file configuration override.
 func testConfigFileOverride(t *testing.T, fs *helpers.TestFS) {
-	setupProject(fs)
+	if err := setupProject(fs); err != nil {
+		t.Fatal(err)
+	}
 
 	configContent := fmt.Sprintf(`
 paths:
@@ -587,7 +630,7 @@ paths:
 
 // newCmd creates a new command with proper environment.
 func newCmd(fs *helpers.TestFS, args ...string) *exec.Cmd {
-	binary := "./wf"
+	binary := "./" + wfBinary
 
 	cmd := exec.Command(binary, args...)
 	cmd.Dir = fs.Path(".")
@@ -597,4 +640,218 @@ func newCmd(fs *helpers.TestFS, args ...string) *exec.Cmd {
 		fmt.Sprintf("WF_PATHS_DATABASE=%s", fs.Path("test.db")),
 	)
 	return cmd
+}
+
+// testAudit tests the audit command against a run that has already been executed.
+func testAudit(t *testing.T, fs *helpers.TestFS) {
+	// Ensure a run exists (may already exist from testRun).
+	cmd := newCmd(fs, "run", "simple")
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("prerequisite run failed: %v", err)
+	}
+
+	// Fetch latest run ID from the database.
+	dbPath := fs.Path("test.db")
+	store, err := storage.New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: "simple", Limit: 1})
+	store.Close()
+	if err != nil || len(runs) == 0 {
+		t.Fatal("no runs found for audit test")
+	}
+	runID := runs[0].ID
+
+	// Text output — tabwriter table with TIME / EVENT / DATA columns.
+	out, err := newCmd(fs, "audit", runID).CombinedOutput()
+	if err != nil {
+		t.Fatalf("audit command failed: %v\noutput: %s", err, out)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "run_started") {
+		t.Errorf("expected run_started event in audit output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "run_completed") {
+		t.Errorf("expected run_completed event in audit output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "EVENT") {
+		t.Errorf("expected EVENT column header in audit output, got: %s", outStr)
+	}
+
+	// JSON output — raw Go struct array; field is "EventType".
+	out, err = newCmd(fs, "audit", runID, "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("audit --json command failed: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(string(out), "EventType") {
+		t.Errorf("expected JSON with EventType field, got: %s", string(out))
+	}
+	if !strings.Contains(string(out), "run_started") {
+		t.Errorf("expected run_started event in JSON audit output, got: %s", string(out))
+	}
+
+	// Unknown run ID should fail.
+	out, err = newCmd(fs, "audit", "nonexistent-run-id").CombinedOutput()
+	if err == nil {
+		t.Errorf("expected audit to fail for unknown run ID, got: %s", out)
+	}
+}
+
+// testInspect tests the inspect command against a completed run.
+func testInspect(t *testing.T, fs *helpers.TestFS) {
+	// Ensure a run exists.
+	cmd := newCmd(fs, "run", "simple")
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("prerequisite run failed: %v", err)
+	}
+
+	dbPath := fs.Path("test.db")
+	store, err := storage.New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	runs, err := store.ListRuns(storage.RunFilters{WorkflowName: "simple", Limit: 1})
+	store.Close()
+	if err != nil || len(runs) == 0 {
+		t.Fatal("no runs found for inspect test")
+	}
+	runID := runs[0].ID
+
+	// Text output.
+	out, err := newCmd(fs, "inspect", runID).CombinedOutput()
+	if err != nil {
+		t.Fatalf("inspect command failed: %v\noutput: %s", err, out)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "RUN METADATA") {
+		t.Errorf("expected RUN METADATA section, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "TASKS") {
+		t.Errorf("expected TASKS section, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, runID) {
+		t.Errorf("expected run ID in output, got: %s", outStr)
+	}
+
+	// JSON output — top-level object has "run", "tasks", "forensic_logs", "dag_cache", "variables".
+	out, err = newCmd(fs, "inspect", runID, "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("inspect --json command failed: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(string(out), "\"run\"") {
+		t.Errorf("expected JSON with run field, got: %s", string(out))
+	}
+	if !strings.Contains(string(out), "\"tasks\"") {
+		t.Errorf("expected JSON with tasks field, got: %s", string(out))
+	}
+
+	// Unknown run ID should fail.
+	out, err = newCmd(fs, "inspect", "nonexistent-run-id").CombinedOutput()
+	if err == nil {
+		t.Errorf("expected inspect to fail for unknown run ID, got: %s", out)
+	}
+}
+
+// testHealth tests the health command.
+func testHealth(t *testing.T, fs *helpers.TestFS) {
+	// Text output — database must be reachable.
+	out, err := newCmd(fs, "health").CombinedOutput()
+	if err != nil {
+		t.Fatalf("health command failed: %v\noutput: %s", err, out)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "SYSTEM HEALTH") {
+		t.Errorf("expected SYSTEM HEALTH header, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "Database") {
+		t.Errorf("expected Database line in health output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "Workflows") {
+		t.Errorf("expected Workflows line in health output, got: %s", outStr)
+	}
+
+	// JSON output.
+	out, err = newCmd(fs, "health", "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("health --json command failed: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(string(out), "\"database_ok\"") {
+		t.Errorf("expected JSON with database_ok field, got: %s", string(out))
+	}
+	if !strings.Contains(string(out), "\"healthy\"") {
+		t.Errorf("expected JSON with healthy field, got: %s", string(out))
+	}
+}
+
+// testRunsAdvanced tests the advanced flags of the runs command.
+func testRunsAdvanced(t *testing.T, fs *helpers.TestFS) {
+	// Ensure at least one run exists.
+	if _, err := newCmd(fs, "run", "simple").CombinedOutput(); err != nil {
+		t.Fatalf("prerequisite run failed: %v", err)
+	}
+
+	// --stats: should print summary only (no per-run table rows).
+	out, err := newCmd(fs, "runs", "--stats").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --stats failed: %v\noutput: %s", err, out)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "Total") {
+		t.Errorf("expected Total in --stats output, got: %s", outStr)
+	}
+
+	// --detailed: should include per-task breakdown.
+	out, err = newCmd(fs, "runs", "--detailed").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --detailed failed: %v\noutput: %s", err, out)
+	}
+	if len(string(out)) == 0 {
+		t.Error("expected non-empty output for runs --detailed")
+	}
+
+	// --sort time: should succeed.
+	out, err = newCmd(fs, "runs", "--sort", "time").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --sort time failed: %v\noutput: %s", err, out)
+	}
+
+	// --sort workflow: should succeed.
+	out, err = newCmd(fs, "runs", "--sort", "workflow").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --sort workflow failed: %v\noutput: %s", err, out)
+	}
+
+	// --sort duration: should succeed.
+	out, err = newCmd(fs, "runs", "--sort", "duration").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --sort duration failed: %v\noutput: %s", err, out)
+	}
+
+	// --timeline: should succeed.
+	out, err = newCmd(fs, "runs", "--timeline").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --timeline failed: %v\noutput: %s", err, out)
+	}
+	if len(string(out)) == 0 {
+		t.Error("expected non-empty output for runs --timeline")
+	}
+
+	// --workflow filter with --json: should contain matching workflow.
+	out, err = newCmd(fs, "runs", "--workflow", "simple", "--json").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --workflow simple --json failed: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(string(out), "simple") {
+		t.Errorf("expected workflow name 'simple' in JSON output, got: %s", string(out))
+	}
+
+	// --status filter: filter by success status. The table prints "SUCCESS" (upper-case, ANSI-coloured).
+	out, err = newCmd(fs, "runs", "--status", "success").CombinedOutput()
+	if err != nil {
+		t.Fatalf("runs --status success failed: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(string(out), "SUCCESS") {
+		t.Errorf("expected SUCCESS in status-filtered output, got: %s", string(out))
+	}
 }

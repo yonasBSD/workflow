@@ -1,0 +1,247 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# log-analysis.toml  ·  Observability Log Analysis & Alerting
+# ─────────────────────────────────────────────────────────────────────────────
+# Industry: Platform Engineering / Observability / SRE
+#
+# Features demonstrated:
+#   ✓ matrix — collect logs from 5 services in parallel
+#   ✓ parallel collection phase
+#   ✓ register (error counts, p99 latency per service)
+#   ✓ if conditional (alert only when errors exceed threshold)
+#   ✓ ignore_failure (one bad service log source must not stop others)
+#   ✓ timeout (log collection bounded — no hanging on dead services)
+#   ✓ working_dir
+#   ✓ tags (observability, ops, hourly)
+#
+# Try:
+#   wf run log-analysis --parallel --print-output
+#   wf run log-analysis --work-stealing --max-parallel 6
+#   wf run log-analysis --timeout 10m
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "log-analysis"
+description = "Hourly log collection, error analysis, anomaly detection, and conditional alerting across all services"
+tags        = ["observability", "ops", "hourly", "alerting"]
+
+# ── Init ──────────────────────────────────────────────────────────────────────
+
+[tasks.init]
+name = "Init Analysis Window"
+cmd  = """
+WINDOW_END=$(date -u +%Y-%m-%dT%H:00:00Z)
+WINDOW_START=$(date -u +%Y-%m-%dT%H:00:00Z -d "1 hour ago" 2>/dev/null || \
+               date -u -v-1H +%Y-%m-%dT%H:00:00Z 2>/dev/null || \
+               echo "$(date -u +%Y-%m-%d)T00:00:00Z")
+mkdir -p /tmp/wf-logs/raw /tmp/wf-logs/parsed /tmp/wf-logs/reports
+echo "Analysis window: $WINDOW_START → $WINDOW_END"
+echo "Logs backend   : Loki (http://loki.monitoring:3100)"
+echo "$WINDOW_END"
+"""
+register = "window_end"
+
+# ── Collect logs from each service (matrix) ───────────────────────────────────
+
+[tasks.collect-service-logs]
+name           = "Collect Logs"
+cmd            = """
+sleep 2
+# Simulate log collection — in reality: logcli query or API call
+SERVICE="(simulated-service)"
+LINES=$(( RANDOM % 50000 + 10000 ))
+ERRORS=$(( RANDOM % 20 ))
+P99=$(( RANDOM % 500 + 50 ))
+echo "Service   : $SERVICE"
+echo "Log lines : $LINES"
+echo "Errors    : $ERRORS"
+echo "P99 (ms)  : ${P99}ms"
+echo "$LINES lines" > /tmp/wf-logs/raw/service_$(date +%s%N).log
+echo "collected"
+"""
+depends_on     = ["init"]
+ignore_failure = true          # a dead log agent must not abort the whole run
+timeout        = "3m"
+working_dir    = "/tmp/wf-logs"
+
+[tasks.collect-service-logs.matrix]
+service = ["api", "auth", "payments", "notifications", "search"]
+
+# ── Parse and extract metrics from each service ───────────────────────────────
+
+[tasks.parse-api-logs]
+name       = "Parse api Service Errors"
+cmd        = """
+sleep 1
+ERRORS=$(( RANDOM % 10 + 1 ))
+echo "api: parsed logs, found $ERRORS error-level lines"
+echo "$ERRORS"
+"""
+register   = "api_errors"
+depends_on = ["collect-service-logs[service=api]"]
+timeout    = "2m"
+
+[tasks.parse-auth-logs]
+name       = "Parse auth Service Errors"
+cmd        = """
+sleep 1
+ERRORS=$(( RANDOM % 5 ))
+echo "auth: parsed logs, found $ERRORS error-level lines"
+echo "$ERRORS"
+"""
+register   = "auth_errors"
+depends_on = ["collect-service-logs[service=auth]"]
+timeout    = "2m"
+
+[tasks.parse-payments-logs]
+name       = "Parse payments Service Errors"
+cmd        = """
+sleep 1
+ERRORS=$(( RANDOM % 3 ))
+echo "payments: parsed logs, found $ERRORS error-level lines"
+echo "$ERRORS"
+"""
+register   = "payments_errors"
+depends_on = ["collect-service-logs[service=payments]"]
+timeout    = "2m"
+
+[tasks.parse-notifications-logs]
+name           = "Parse notifications Service Errors"
+cmd            = """
+sleep 1
+ERRORS=0
+echo "notifications: parsed logs, found $ERRORS error-level lines"
+echo "$ERRORS"
+"""
+register       = "notifications_errors"
+depends_on     = ["collect-service-logs[service=notifications]"]
+ignore_failure = true    # notifications is non-critical
+timeout        = "2m"
+
+[tasks.parse-search-logs]
+name       = "Parse search Service Errors"
+cmd        = """
+sleep 1
+ERRORS=$(( RANDOM % 15 ))
+echo "search: parsed logs, found $ERRORS error-level lines"
+echo "$ERRORS"
+"""
+register   = "search_errors"
+depends_on = ["collect-service-logs[service=search]"]
+timeout    = "2m"
+
+# ── Anomaly detection ─────────────────────────────────────────────────────────
+
+[tasks.detect-anomalies]
+name       = "Anomaly Detection (Isolation Forest)"
+cmd        = """
+sleep 2
+echo "Running anomaly detection on parsed error time-series..."
+echo ""
+echo "Service error counts this hour:"
+echo "  api           : {{.api_errors}}"
+echo "  auth          : {{.auth_errors}}"
+echo "  payments      : {{.payments_errors}}"
+echo "  notifications : {{.notifications_errors}}"
+echo "  search        : {{.search_errors}}"
+echo ""
+echo "Anomaly score: 0.23 (below threshold 0.70)"
+echo "No anomalies detected"
+echo "normal"
+"""
+register   = "anomaly_status"
+depends_on = ["parse-api-logs", "parse-auth-logs", "parse-payments-logs", "parse-notifications-logs", "parse-search-logs"]
+timeout    = "5m"
+working_dir = "/tmp/wf-logs"
+
+# ── SLO compliance check ──────────────────────────────────────────────────────
+
+[tasks.check-slos]
+name       = "SLO Compliance Check"
+cmd        = """
+sleep 1
+echo "Checking SLOs for the last 30 days:"
+echo "  api       availability: 99.97%  (SLO: 99.9%)  ✓"
+echo "  auth      availability: 99.99%  (SLO: 99.9%)  ✓"
+echo "  payments  availability: 99.95%  (SLO: 99.95%) ✓ (at limit)"
+echo "  search    availability: 99.82%  (SLO: 99.5%)  ✓"
+echo ""
+echo "Error budget remaining:"
+echo "  api      : 43.2 min / 43.8 min (98.6% remaining)"
+echo "  payments :  2.1 min / 21.9 min (9.6% remaining — ⚠️  WARN)"
+echo "slo_ok"
+"""
+register   = "slo_status"
+depends_on = ["detect-anomalies"]
+timeout    = "3m"
+
+# ── Generate hourly report ────────────────────────────────────────────────────
+
+[tasks.generate-report]
+name       = "Generate Hourly Observability Report"
+cmd        = """
+sleep 1
+REPORT="/tmp/wf-logs/reports/hourly-$(date +%Y%m%d-%H).md"
+cat > "$REPORT" <<EOF
+# Hourly Observability Report
+Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Window End: {{.window_end}}
+
+## Error Summary
+| Service       | Errors |
+|---------------|--------|
+| api           | {{.api_errors}} |
+| auth          | {{.auth_errors}} |
+| payments      | {{.payments_errors}} |
+| notifications | {{.notifications_errors}} |
+| search        | {{.search_errors}} |
+
+## SLO Status: {{.slo_status}}
+## Anomaly Status: {{.anomaly_status}}
+EOF
+echo "Report: $REPORT"
+cat "$REPORT"
+"""
+depends_on  = ["check-slos"]
+working_dir = "/tmp/wf-logs"
+
+# ── Conditional alerting ──────────────────────────────────────────────────────
+
+[tasks.alert-slo-breach]
+name       = "Alert: SLO Error Budget Low"
+cmd        = """
+echo "⚠️  SLO ALERT: payments error budget below 10%"
+echo "   SLO status: {{.slo_status}}"
+echo "   Remaining : 2.1 min of 21.9 min budget"
+echo "   Action    : Paging payments team..."
+echo "   Runbook   : https://runbooks.internal/payments-slo"
+"""
+if         = 'slo_status != "slo_ok"'
+depends_on = ["generate-report"]
+
+[tasks.push-metrics]
+name           = "Push Metrics to Prometheus Pushgateway"
+cmd            = """
+sleep 1
+echo "Pushing metrics:"
+echo "  log_analysis_api_errors_total{service=\"api\"}       {{.api_errors}}"
+echo "  log_analysis_auth_errors_total{service=\"auth\"}     {{.auth_errors}}"
+echo "  log_analysis_payments_errors{service=\"payments\"}   {{.payments_errors}}"
+echo "Metrics pushed to pushgateway:9091"
+"""
+depends_on     = ["generate-report"]
+ignore_failure = true
+retries        = 2
+retry_delay    = "5s"
+timeout        = "2m"
+
+[tasks.archive-report]
+name           = "Archive Report to S3"
+cmd            = """
+sleep 1
+echo "Uploading /tmp/wf-logs/reports/ → s3://observability-reports/$(date +%Y/%m/%d)/"
+echo "Archived 1 report ($(date +%s | cut -c6-12) bytes)"
+"""
+depends_on     = ["generate-report"]
+ignore_failure = true
+retries        = 2
+retry_delay    = "10s"
+timeout        = "3m"

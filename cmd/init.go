@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/joelfokou/workflow/internal/config"
 	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/run"
+	"github.com/joelfokou/workflow/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +17,7 @@ var initCmd = &cobra.Command{
 	Short: "Initialise workflow directories and database",
 	Long:  "Create necessary directories and initialise the SQLite database for run tracking",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Create necessary directories
 		dirs := []string{
 			config.Get().Paths.Workflows,
 			config.Get().Paths.Logs,
@@ -32,24 +33,19 @@ var initCmd = &cobra.Command{
 
 		// Initialise SQLite database
 		dbPath := config.Get().Paths.Database
-		store, err := run.NewStore(dbPath)
+		store, err := storage.New(dbPath)
 		if err != nil {
 			logger.Error("failed to initialise database", "path", dbPath, "error", err)
 			return fmt.Errorf("failed to initialise database: %w", err)
 		}
 		store.Close()
 
-		// Initialise config file & parent directories, if they don't exist
+		// Initialise config file if it doesn't exist
 		cfgFile := config.ConfigFile()
-		cfgDir := path.Dir(cfgFile)
-
-		if err := os.MkdirAll(cfgDir, 0755); err != nil {
-			logger.L().Error("failed to create platform configuration directory for user config", zap.String("path", cfgDir), zap.Error(err))
-
-			return fmt.Errorf("failed to create platform configuration directory for user config: %w", err)
-		}
-
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(cfgFile), 0755); err != nil {
+				return fmt.Errorf("failed to create config directory: %w", err)
+			}
 			defaultConfig := config.DefaultConfig()
 			if err := os.WriteFile(cfgFile, []byte(defaultConfig), 0644); err != nil {
 				logger.Error("failed to write config file", "path", cfgFile, "error", err)
