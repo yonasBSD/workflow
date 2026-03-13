@@ -1,6 +1,6 @@
 # Example 09 — Order Processing (Saga Pattern)
 
-**File**: `files/examples/09-order-processing.toml`
+**File**: `files/examples/order-processing.toml`
 **Industry**: E-Commerce
 **Tags**: `ecommerce`, `saga`, `orders`
 

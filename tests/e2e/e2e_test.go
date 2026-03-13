@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/storage"
-	"github.com/joelfokou/workflow/tests/helpers"
+	"github.com/silocorp/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/storage"
+	"github.com/silocorp/workflow/tests/helpers"
 )
 
 // wfBinary is the platform-specific name of the compiled wf executable.

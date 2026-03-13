@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/storage"
+	"github.com/silocorp/workflow/internal/storage"
 )
 
 // ProgressEventKind identifies what happened in a ProgressEvent.

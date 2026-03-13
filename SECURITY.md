@@ -15,7 +15,7 @@ Only the latest release receives security updates.
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
-Use [GitHub Security Advisories](https://github.com/joelfokou/workflow/security/advisories/new) to submit a private report. You will receive an acknowledgement within 48 hours.
+Use [GitHub Security Advisories](https://github.com/silocorp/workflow/security/advisories/new) to submit a private report. You will receive an acknowledgement within 48 hours.
 
 Include:
 1. `wf --version` output

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joelfokou/workflow/internal/config"
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/config"
+	"github.com/silocorp/workflow/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +16,12 @@ var (
 	configFile string
 )
 
+// SetVersionInfo is called by main() to inject build-time version metadata.
+func SetVersionInfo(version, commit, date string) {
+	rootCmd.Version = version
+	rootCmd.Long += "\n\nVersion: " + version + "\nCommit:  " + commit + "\nBuilt:   " + date
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "wf",
 	Short: "wf - lightweight local workflow runner",
@@ -23,7 +29,7 @@ var rootCmd = &cobra.Command{
 
 A simple yet powerful tool for defining and executing task workflows locally.
 Workflows are defined in TOML format and executed in topological order.`,
-	Version:       "0.2.0",
+	Version:       "dev",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {

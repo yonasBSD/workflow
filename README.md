@@ -1,11 +1,19 @@
-# wf
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="wf logo" width="80" height="80">
+</p>
 
-### Infrastructure automation runtime. One binary. No required infrastructure. Anywhere.
+<h1 align="center">workflow</h1>
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/joelfokou/workflow)](https://goreportcard.com/report/github.com/joelfokou/workflow)
-[![GitHub release](https://img.shields.io/github/v/release/joelfokou/workflow)](https://github.com/joelfokou/workflow/releases)
-[![License](https://img.shields.io/github/license/joelfokou/workflow)](LICENSE)
-[![Go Reference](https://pkg.go.dev/badge/github.com/joelfokou/workflow.svg)](https://pkg.go.dev/github.com/joelfokou/workflow)
+<p align="center">
+  <strong>Automate anything. Depend on nothing.</strong>
+</p>
+
+<p align="center">
+  <a href="https://goreportcard.com/report/github.com/silocorp/workflow"><img src="https://goreportcard.com/badge/github.com/silocorp/workflow" alt="Go Report Card"></a>
+  <a href="https://github.com/silocorp/workflow/releases"><img src="https://img.shields.io/github/v/release/silocorp/workflow" alt="GitHub release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/silocorp/workflow" alt="License"></a>
+  <a href="https://pkg.go.dev/github.com/silocorp/workflow"><img src="https://pkg.go.dev/badge/github.com/silocorp/workflow.svg" alt="Go Reference"></a>
+</p>
 
 ---
 
@@ -142,7 +150,7 @@ wf audit <run-id>
 
 ```bash
 # Install (Linux / macOS)
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
 
 # Initialise workspace
 wf init
@@ -157,16 +165,16 @@ wf validate my-workflow
 wf run my-workflow --parallel --print-output
 ```
 
-Pre-built binaries for Linux, macOS, and Windows are available on the [Releases page](https://github.com/joelfokou/workflow/releases). The install script verifies checksums automatically.
+Pre-built binaries for Linux, macOS, and Windows are available on the [Releases page](https://github.com/silocorp/workflow/releases). The install script verifies checksums automatically.
 
-Full documentation: **[joelfokou.github.io/workflow](https://joelfokou.github.io/workflow)**
+Full documentation: **[silocorp.github.io/workflow](https://silocorp.github.io/workflow)**
 
-- [Installation](https://joelfokou.github.io/workflow/getting-started/installation/)
-- [Quick Start](https://joelfokou.github.io/workflow/getting-started/quick-start/)
-- [Workflow File Reference](https://joelfokou.github.io/workflow/reference/workflow-file/)
-- [CLI Reference](https://joelfokou.github.io/workflow/reference/cli/)
-- [Security Model](https://joelfokou.github.io/workflow/security/model/)
-- [Examples](https://joelfokou.github.io/workflow/examples/)
+- [Installation](https://silocorp.github.io/workflow/getting-started/installation/)
+- [Quick Start](https://silocorp.github.io/workflow/getting-started/quick-start/)
+- [Workflow File Reference](https://silocorp.github.io/workflow/reference/workflow-file/)
+- [CLI Reference](https://silocorp.github.io/workflow/reference/cli/)
+- [Security Model](https://silocorp.github.io/workflow/security/model/)
+- [Examples](https://silocorp.github.io/workflow/examples/)
 
 ---
 
@@ -198,7 +206,7 @@ CLI (cmd/)
 
 The executor, storage backend, and scheduler are deliberately separated. The system is designed so that each layer can evolve independently. The trigger system (cron, file-watch, webhook) is defined in the schema and awaits implementation. The storage interface is abstracted over a concrete SQLite implementation.
 
-Details: [Architecture Overview](https://joelfokou.github.io/workflow/architecture/overview/)
+Details: [Architecture Overview](https://silocorp.github.io/workflow/architecture/overview/)
 
 ---
 

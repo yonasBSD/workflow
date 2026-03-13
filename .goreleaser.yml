@@ -59,7 +59,7 @@ signs:
 
 release:
   github:
-    owner: joelfokou
+    owner: silocorp
     name: workflow
   draft: false
   prerelease: auto
@@ -67,14 +67,14 @@ release:
   header: |
     ## wf v{{.Version}}
 
-    See the [Changelog](https://joelfokou.github.io/workflow/changelog/) for a full description of changes.
+    See the [Changelog](https://silocorp.github.io/workflow/changelog/) for a full description of changes.
 
     **Install**:
     ```bash
-    curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
+    curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
     ```
   footer: |
-    **Full Changelog**: https://github.com/joelfokou/workflow/compare/v{{.PreviousTag}}...v{{.Tag}}
+    **Full Changelog**: https://github.com/silocorp/workflow/compare/v{{.PreviousTag}}...v{{.Tag}}
 
 changelog:
   sort: asc

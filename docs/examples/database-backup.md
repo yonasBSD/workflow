@@ -1,6 +1,6 @@
 # Example 03 — Database Backup
 
-**File**: `files/examples/03-database-backup.toml`
+**File**: `files/examples/database-backup.toml`
 **Industry**: Database Administration / SRE
 **Tags**: `backup`, `daily`, `ops`
 

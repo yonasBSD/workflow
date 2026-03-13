@@ -1,6 +1,6 @@
 # Example 07 — Release Management
 
-**File**: `files/examples/07-release-management.toml`
+**File**: `files/examples/release-management.toml`
 **Industry**: Open Source / SaaS DevOps
 **Tags**: `release`, `publish`, `registry`
 

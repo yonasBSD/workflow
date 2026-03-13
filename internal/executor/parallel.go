@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/contextmap"
-	"github.com/joelfokou/workflow/internal/dag"
-	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/storage"
+	"github.com/silocorp/workflow/internal/contextmap"
+	"github.com/silocorp/workflow/internal/dag"
+	"github.com/silocorp/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/storage"
 )
 
 type ParallelExecutor struct {

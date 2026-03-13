@@ -1,14 +1,14 @@
 site_name: wf — Infrastructure Automation Runtime
 site_description: A single binary that executes operational workflows defined in TOML, stores state in local SQLite, and provides stateful resume from any failure. Built for air-gapped, edge, and critical infrastructure environments.
-site_url: https://joelfokou.github.io/workflow
-repo_url: https://github.com/joelfokou/workflow
-repo_name: joelfokou/workflow
+site_url: https://silocorp.github.io/workflow
+repo_url: https://github.com/silocorp/workflow
+repo_name: silocorp/workflow
 edit_uri: edit/master/docs/
 
 theme:
   name: material
   logo: assets/logo.svg
-  favicon: assets/favicon.png
+  favicon: assets/logo.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -78,7 +78,7 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/joelfokou/workflow
+      link: https://github.com/silocorp/workflow
   version:
     provider: mike
 

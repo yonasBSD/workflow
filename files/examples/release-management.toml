@@ -110,7 +110,7 @@ env         = {CGO_ENABLED = "0", GOFLAGS = "-trimpath"}
 name       = "Build & Tag Docker Image"
 cmd        = """
 sleep 2
-IMAGE="ghcr.io/joelfokou/wf"
+IMAGE="ghcr.io/silocorp/wf"
 echo "Building: $IMAGE:{{.version}}"
 echo "Building: $IMAGE:latest"
 echo "Building: $IMAGE:2.7"
@@ -188,7 +188,7 @@ sleep 1
 echo "Creating GitHub release: v{{.version}}"
 echo "  Assets attached: 4 binaries, SBOM, checksums"
 echo "  Release notes  : from CHANGELOG.md"
-echo "  URL: https://github.com/joelfokou/wf/releases/tag/v{{.version}}"
+echo "  URL: https://github.com/silocorp/wf/releases/tag/v{{.version}}"
 """
 depends_on = ["publish-registry[registry=ghcr]", "sign-binaries"]
 retries    = 2
@@ -202,7 +202,7 @@ env        = {GITHUB_TOKEN = "REDACTED"}
 name           = "Post Release Tweet"
 cmd            = """
 echo "🚀 wf v{{.version}} is out!"
-echo "   → https://github.com/joelfokou/wf/releases/tag/v{{.version}}"
+echo "   → https://github.com/silocorp/wf/releases/tag/v{{.version}}"
 """
 depends_on     = ["create-github-release"]
 ignore_failure = true
@@ -211,8 +211,8 @@ ignore_failure = true
 name           = "Post to #releases Slack Channel"
 cmd            = """
 echo "📦 *wf v{{.version}} released*"
-echo "   Changelog: https://github.com/joelfokou/wf/blob/main/CHANGELOG.md#{{.version}}"
-echo "   Docker   : ghcr.io/joelfokou/wf:{{.version}}"
+echo "   Changelog: https://github.com/silocorp/wf/blob/main/CHANGELOG.md#{{.version}}"
+echo "   Docker   : ghcr.io/silocorp/wf:{{.version}}"
 """
 depends_on     = ["create-github-release"]
 ignore_failure = true
@@ -232,7 +232,7 @@ cmd            = """
 sleep 1
 echo "Dispatching docs rebuild workflow..."
 echo "Version in docs: {{.version}}"
-echo "Docs site: https://wf.joelfokou.dev"
+echo "Docs site: https://wf.silocorp.dev"
 """
 depends_on     = ["create-github-release"]
 ignore_failure = true

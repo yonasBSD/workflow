@@ -5,13 +5,13 @@
 One command installs the correct binary for your platform, verifies the checksum, and places it on your `PATH`:
 
 ```bash
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
 ```
 
 Or with `wget`:
 
 ```bash
-wget -qO- https://joelfokou.github.io/workflow/install.sh | sh
+wget -qO- https://silocorp.github.io/workflow/install.sh | sh
 ```
 
 The script:
@@ -27,30 +27,30 @@ The script:
 
 ```bash
 # Install a specific version
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh -s -- --version 0.2.0
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh -s -- --version 0.2.0
 
 # Install to a custom directory
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | WF_INSTALL_DIR=~/.local/bin sh
+curl -fsSL https://silocorp.github.io/workflow/install.sh | WF_INSTALL_DIR=~/.local/bin sh
 
 # Verify checksum only, do not install
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh -s -- --verify-only
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh -s -- --verify-only
 ```
 
 ---
 
 ## Download binary manually
 
-Pre-built binaries for all supported platforms are available on the [GitHub Releases page](https://github.com/joelfokou/workflow/releases).
+Pre-built binaries for all supported platforms are available on the [GitHub Releases page](https://github.com/silocorp/workflow/releases).
 
 === "Linux (amd64)"
 
     ```bash
     VERSION="0.2.0"
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/wf_${VERSION}_linux_amd64.tar.gz" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/wf_${VERSION}_linux_amd64.tar.gz" \
       -o wf.tar.gz
 
     # Verify checksum
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/checksums.txt" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/checksums.txt" \
       | grep "linux_amd64" | sha256sum -c
 
     tar -xzf wf.tar.gz
@@ -62,10 +62,10 @@ Pre-built binaries for all supported platforms are available on the [GitHub Rele
 
     ```bash
     VERSION="0.2.0"
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/wf_${VERSION}_linux_arm64.tar.gz" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/wf_${VERSION}_linux_arm64.tar.gz" \
       -o wf.tar.gz
 
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/checksums.txt" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/checksums.txt" \
       | grep "linux_arm64" | sha256sum -c
 
     tar -xzf wf.tar.gz
@@ -77,10 +77,10 @@ Pre-built binaries for all supported platforms are available on the [GitHub Rele
 
     ```bash
     VERSION="0.2.0"
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/wf_${VERSION}_darwin_arm64.tar.gz" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/wf_${VERSION}_darwin_arm64.tar.gz" \
       -o wf.tar.gz
 
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/checksums.txt" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/checksums.txt" \
       | grep "darwin_arm64" | shasum -a 256 -c
 
     tar -xzf wf.tar.gz
@@ -92,10 +92,10 @@ Pre-built binaries for all supported platforms are available on the [GitHub Rele
 
     ```bash
     VERSION="0.2.0"
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/wf_${VERSION}_darwin_amd64.tar.gz" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/wf_${VERSION}_darwin_amd64.tar.gz" \
       -o wf.tar.gz
 
-    curl -fsSL "https://github.com/joelfokou/workflow/releases/download/v${VERSION}/checksums.txt" \
+    curl -fsSL "https://github.com/silocorp/workflow/releases/download/v${VERSION}/checksums.txt" \
       | grep "darwin_amd64" | shasum -a 256 -c
 
     tar -xzf wf.tar.gz
@@ -105,14 +105,14 @@ Pre-built binaries for all supported platforms are available on the [GitHub Rele
 
 === "Windows (amd64)"
 
-    Download `wf_0.2.0_windows_amd64.zip` from the [Releases page](https://github.com/joelfokou/workflow/releases/latest), extract it, and move `wf.exe` to a directory on your `PATH`.
+    Download `wf_0.2.0_windows_amd64.zip` from the [Releases page](https://github.com/silocorp/workflow/releases/latest), extract it, and move `wf.exe` to a directory on your `PATH`.
 
     PowerShell:
 
     ```powershell
     $version = "0.2.0"
     Invoke-WebRequest `
-      -Uri "https://github.com/joelfokou/workflow/releases/download/v$version/wf_${version}_windows_amd64.zip" `
+      -Uri "https://github.com/silocorp/workflow/releases/download/v$version/wf_${version}_windows_amd64.zip" `
       -OutFile wf.zip
     Expand-Archive wf.zip -DestinationPath .
     Move-Item wf.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\"
@@ -180,10 +180,10 @@ Creates the required directories and a config stub:
 Re-run the install script — it always fetches the latest release:
 
 ```bash
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
 ```
 
-Or download the new archive manually from the [Releases page](https://github.com/joelfokou/workflow/releases) and replace the binary. Schema migrations run automatically on first use after an upgrade — no manual steps required.
+Or download the new archive manually from the [Releases page](https://github.com/silocorp/workflow/releases) and replace the binary. Schema migrations run automatically on first use after an upgrade — no manual steps required.
 
 ---
 
@@ -192,7 +192,7 @@ Or download the new archive manually from the [Releases page](https://github.com
 For Go developers who want the latest commit from the default branch:
 
 ```bash
-go install github.com/joelfokou/workflow@latest
+go install github.com/silocorp/workflow@latest
 ```
 
 The binary is placed in `$(go env GOPATH)/bin`. Ensure that directory is on your `PATH`.
@@ -204,11 +204,11 @@ The binary is placed in `$(go env GOPATH)/bin`. Ensure that directory is on your
 For contributors and developers working on `wf` itself. Requires Go 1.24+.
 
 ```bash
-git clone https://github.com/joelfokou/workflow.git
+git clone https://github.com/silocorp/workflow.git
 cd workflow
 go build -o wf .
 sudo mv wf /usr/local/bin/
 wf --version
 ```
 
-See [CONTRIBUTING.md](https://github.com/joelfokou/workflow/blob/master/CONTRIBUTING.md) for the full development guide.
+See [CONTRIBUTING.md](https://github.com/silocorp/workflow/blob/master/CONTRIBUTING.md) for the full development guide.

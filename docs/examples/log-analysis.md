@@ -1,6 +1,6 @@
 # Example 08 — Log Analysis
 
-**File**: `files/examples/08-log-analysis.toml`
+**File**: `files/examples/log-analysis.toml`
 **Industry**: SRE / Observability
 **Tags**: `observability`, `logs`, `sre`
 

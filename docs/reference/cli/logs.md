@@ -71,8 +71,8 @@ Use `wf inspect <run-id>` to see all task IDs for a run.
 
 === test-unit ===
 [14:22:04] Running: go test -race ./...
-[14:22:08] ok   github.com/joelfokou/workflow/internal/dag   3.241s
-[14:22:09] ok   github.com/joelfokou/workflow/internal/executor   4.812s
+[14:22:08] ok   github.com/silocorp/workflow/internal/dag   3.241s
+[14:22:09] ok   github.com/silocorp/workflow/internal/executor   4.812s
 ```
 
 ## See Also

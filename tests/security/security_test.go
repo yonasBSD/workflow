@@ -23,10 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/contextmap"
-	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/security"
-	"github.com/joelfokou/workflow/internal/storage"
+	"github.com/silocorp/workflow/internal/contextmap"
+	"github.com/silocorp/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/security"
+	"github.com/silocorp/workflow/internal/storage"
 )
 
 func init() {

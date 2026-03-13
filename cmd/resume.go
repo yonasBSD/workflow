@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/config"
-	"github.com/joelfokou/workflow/internal/executor"
-	"github.com/joelfokou/workflow/internal/logger"
-	"github.com/joelfokou/workflow/internal/storage"
+	"github.com/silocorp/workflow/internal/config"
+	"github.com/silocorp/workflow/internal/executor"
+	"github.com/silocorp/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/storage"
 	"github.com/spf13/cobra"
 )
 

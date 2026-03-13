@@ -3,11 +3,20 @@
 package main
 
 import (
-	"github.com/joelfokou/workflow/cmd"
+	"github.com/silocorp/workflow/cmd"
+)
+
+// version, commit, and date are set by GoReleaser via ldflags at build time.
+// When built without ldflags (e.g. go build), they default to "dev".
+var (
+	version = "dev"
+	commit  = "dev"
+	date    = "unknown"
 )
 
 // main is the entry point of the application.
 // It delegates execution to the cmd package's Execute function.
 func main() {
+	cmd.SetVersionInfo(version, commit, date)
 	cmd.Execute()
 }

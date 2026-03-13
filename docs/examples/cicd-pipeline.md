@@ -1,6 +1,6 @@
 # Example 01 — CI/CD Pipeline
 
-**File**: `files/examples/01-cicd-pipeline.toml`
+**File**: `files/examples/cicd-pipeline.toml`
 **Industry**: Platform Engineering / DevOps
 **Tags**: `ci`, `deploy`, `prod`
 

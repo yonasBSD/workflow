@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/dag"
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/dag"
+	"github.com/silocorp/workflow/internal/logger"
 	"github.com/spf13/cobra"
 )
 

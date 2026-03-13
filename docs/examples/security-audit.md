@@ -1,6 +1,6 @@
 # Example 06 — Security Audit Pipeline
 
-**File**: `files/examples/06-security-audit.toml`
+**File**: `files/examples/security-audit.toml`
 **Industry**: Application Security / SecOps
 **Tags**: `security`, `audit`, `compliance`
 

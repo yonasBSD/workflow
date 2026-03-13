@@ -1,6 +1,6 @@
 # Example 05 — Infrastructure Provisioning
 
-**File**: `files/examples/05-infra-provisioning.toml`
+**File**: `files/examples/infra-provisioning.toml`
 **Industry**: Cloud Engineering / Platform Engineering
 **Tags**: `infrastructure`, `terraform`, `cloud`
 

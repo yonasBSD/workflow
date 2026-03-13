@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/logger"
 	"github.com/segmentio/ksuid"
 	_ "modernc.org/sqlite"
 )

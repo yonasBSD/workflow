@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/joelfokou/workflow/internal/contextmap"
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/contextmap"
+	"github.com/silocorp/workflow/internal/logger"
 )
 
 type Builder struct {

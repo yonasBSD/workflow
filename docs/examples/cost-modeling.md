@@ -1,6 +1,6 @@
 # Example 12 — Infrastructure Cost Modeling
 
-**File**: `files/examples/12-cost-modeling.toml`
+**File**: `files/examples/cost-modeling.toml`
 **Industry**: Engineering / Finance / FinOps
 **Tags**: `finops`, `cost`, `modeling`, `deployment`
 

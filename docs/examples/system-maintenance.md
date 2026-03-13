@@ -1,6 +1,6 @@
 # Example 10 — System Maintenance
 
-**File**: `files/examples/10-system-maintenance.toml`
+**File**: `files/examples/system-maintenance.toml`
 **Industry**: SRE / Platform Engineering / Systems Administration
 **Tags**: `maintenance`, `daily`, `ops`, `cron`
 

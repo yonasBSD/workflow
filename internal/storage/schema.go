@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/logger"
 )
 
 // migration is a single, forward-only schema change.

@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/config"
-	"github.com/joelfokou/workflow/internal/storage"
-	"github.com/joelfokou/workflow/internal/tty"
+	"github.com/silocorp/workflow/internal/config"
+	"github.com/silocorp/workflow/internal/storage"
+	"github.com/silocorp/workflow/internal/tty"
 	"github.com/spf13/cobra"
 )
 

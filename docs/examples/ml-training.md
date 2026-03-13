@@ -1,6 +1,6 @@
 # Example 04 — ML Training Pipeline
 
-**File**: `files/examples/04-ml-training.toml`
+**File**: `files/examples/ml-training.toml`
 **Industry**: Machine Learning / MLOps
 **Tags**: `ml`, `training`, `model`
 

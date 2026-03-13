@@ -1,6 +1,6 @@
 # Example 02 — Data ETL
 
-**File**: `files/examples/02-data-etl.toml`
+**File**: `files/examples/data-etl.toml`
 **Industry**: Data Engineering
 **Tags**: `etl`, `nightly`, `data`
 

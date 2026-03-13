@@ -1,6 +1,6 @@
 # Example 11 — Regulatory Compliance Audit
 
-**File**: `files/examples/11-compliance-audit.toml`
+**File**: `files/examples/compliance-audit.toml`
 **Industry**: Finance / Healthcare / Government
 **Tags**: `compliance`, `audit`, `evidence`, `annual`
 

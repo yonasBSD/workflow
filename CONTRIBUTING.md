@@ -10,7 +10,7 @@ Thank you for contributing. This guide covers everything needed to go from idea 
 **Prerequisites**: Go 1.24+, Git
 
 ```bash
-git clone https://github.com/joelfokou/workflow.git
+git clone https://github.com/silocorp/workflow.git
 cd workflow
 go mod download
 go build -o wf .

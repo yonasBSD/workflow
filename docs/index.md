@@ -68,12 +68,14 @@ It is a single static binary that executes operational workflows defined in TOML
 ## Quick Start
 
 ```bash
-go build -o wf .
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
 wf init
 export WF_PATHS_WORKFLOWS=/path/to/workflows
 wf validate my-workflow
 wf run      my-workflow --parallel --print-output
 ```
+
+See [Installation](getting-started/installation.md) for Windows, manual downloads, and building from source.
 
 ---
 

@@ -1,4 +1,4 @@
-module github.com/joelfokou/workflow
+module github.com/silocorp/workflow
 
 go 1.24.0
 

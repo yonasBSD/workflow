@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joelfokou/workflow/internal/logger"
+	"github.com/silocorp/workflow/internal/logger"
 )
 
 func TestMain(m *testing.M) {

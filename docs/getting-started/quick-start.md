@@ -5,7 +5,7 @@ This guide walks you from zero to a running multi-task workflow in five minutes.
 ## 1. Install and initialise
 
 ```bash
-curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
+curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
 wf init
 ```
 
