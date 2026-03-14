@@ -2,16 +2,16 @@
 # wf installer
 #
 # Usage:
-#   curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh
-#   curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh -s -- --version 0.2.0
-#   curl -fsSL https://joelfokou.github.io/workflow/install.sh | WF_INSTALL_DIR=~/.local/bin sh
-#   curl -fsSL https://joelfokou.github.io/workflow/install.sh | sh -s -- --verify-only
+#   curl -fsSL https://silocorp.github.io/workflow/install.sh | sh
+#   curl -fsSL https://silocorp.github.io/workflow/install.sh | sh -s -- --version 0.2.0
+#   curl -fsSL https://silocorp.github.io/workflow/install.sh | WF_INSTALL_DIR=~/.local/bin sh
+#   curl -fsSL https://silocorp.github.io/workflow/install.sh | sh -s -- --verify-only
 
 set -e
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-REPO="joelfokou/workflow"
+REPO="silocorp/workflow"
 BINARY="wf"
 GITHUB_API="https://api.github.com/repos/${REPO}/releases/latest"
 GITHUB_RELEASES="https://github.com/${REPO}/releases/download"
@@ -195,7 +195,7 @@ if "${INSTALL_DIR}/${BINARY}" --version >/dev/null 2>&1; then
     ok "$("${INSTALL_DIR}/${BINARY}" --version)"
     echo ""
     echo "Run 'wf init' to initialise your workspace."
-    echo "Documentation: https://joelfokou.github.io/workflow"
+    echo "Documentation: https://silocorp.github.io/workflow"
 else
     warn "Installation complete, but 'wf --version' failed. Check your PATH."
 fi

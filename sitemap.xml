@@ -1,215 +1,215 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://joelfokou.github.io/workflow/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/changelog/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/changelog/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/architecture/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/architecture/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/architecture/overview/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/architecture/overview/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/dag/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/dag/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/execution-modes/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/execution-modes/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/forensic-tasks/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/forensic-tasks/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/matrix/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/matrix/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/resume/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/resume/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/triggers/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/triggers/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/concepts/variables/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/concepts/variables/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/cicd-pipeline/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/cicd-pipeline/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/compliance-audit/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/compliance-audit/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/cost-modeling/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/cost-modeling/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/data-etl/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/data-etl/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/database-backup/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/database-backup/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/infra-provisioning/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/infra-provisioning/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/log-analysis/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/log-analysis/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/ml-training/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/ml-training/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/order-processing/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/order-processing/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/release-management/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/release-management/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/security-audit/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/security-audit/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/examples/system-maintenance/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/examples/system-maintenance/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/getting-started/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/getting-started/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/getting-started/configuration/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/getting-started/configuration/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/getting-started/installation/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/getting-started/installation/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/getting-started/quick-start/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/getting-started/quick-start/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/guides/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/guides/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/guides/error-handling/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/guides/error-handling/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/guides/first-workflow/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/guides/first-workflow/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/guides/parallel-execution/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/guides/parallel-execution/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/guides/saga-pattern/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/guides/saga-pattern/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/workflow-file/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/workflow-file/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/audit/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/audit/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/diff/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/diff/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/export/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/export/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/graph/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/graph/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/health/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/health/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/init/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/init/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/inspect/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/inspect/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/list/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/list/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/logs/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/logs/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/resume/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/resume/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/run/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/run/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/runs/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/runs/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/status/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/status/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/reference/cli/validate/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/reference/cli/validate/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/security/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/security/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/security/hardening/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/security/hardening/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
     <url>
-         <loc>https://joelfokou.github.io/workflow/security/model/</loc>
-         <lastmod>2026-03-13</lastmod>
+         <loc>https://silocorp.github.io/workflow/security/model/</loc>
+         <lastmod>2026-03-14</lastmod>
     </url>
 </urlset>
